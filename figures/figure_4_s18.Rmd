@@ -2,7 +2,11 @@
 title: "Figure 4"
 author: "Kevin Thomas"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
-output: rmarkdown::github_document
+output:
+  rmarkdown::github_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
 ---
 
 ```{css, echo=FALSE}
@@ -308,3 +312,6 @@ ig_data %>%
   )
 ```
 
+```{r}
+devtools::session_info()
+```

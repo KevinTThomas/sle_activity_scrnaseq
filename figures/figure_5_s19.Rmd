@@ -2,7 +2,11 @@
 title: "Figure 5"
 author: "Kevin Thomas"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
-output: rmarkdown::github_document
+output:
+  rmarkdown::github_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
 ---
 
 ```{css, echo=FALSE}
@@ -403,4 +407,8 @@ ggplot(
   theme(
     axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)
   )
+```
+
+```{r}
+devtools::session_info()
 ```
