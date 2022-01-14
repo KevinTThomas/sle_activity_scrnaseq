@@ -4,6 +4,7 @@ author: "Kevin Thomas"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output:
   rmarkdown::github_document:
+    html_preview: false
     toc: true
     toc_depth: 3
 ---
@@ -68,8 +69,8 @@ IG_genes <- c(
 ## Quality control of cells for initial analysis
 
 ```{r load pre_qc and gem_classification}
-pre_qc <- readRDS(file = "../data/pre_qc.RDS")
-gem_classification <- readRDS(file = "../data/gem_classification.RDS")
+pre_qc <- readRDS(file = "../demo_data/pre_qc.RDS")
+gem_classification <- readRDS(file = "../demo_data/gem_classification.RDS")
 ```
 
 ```{r separate mouse vs human}
@@ -151,7 +152,7 @@ qc_object <- PercentageFeatureSet(
 
 ```{r save data}
 # Save data for next step
-saveRDS(object = qc_object, file = "../data/qc_object.RDS")
+saveRDS(object = qc_object, file = "../demo_data/qc_object.RDS")
 ```
 
 ```{r}

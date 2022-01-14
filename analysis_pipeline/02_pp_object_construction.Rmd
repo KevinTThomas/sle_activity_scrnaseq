@@ -4,6 +4,7 @@ author: "Kevin Thomas"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output:
   rmarkdown::github_document:
+    html_preview: false
     toc: true
     toc_depth: 3
 ---
@@ -41,7 +42,7 @@ source("../R/functions.R")
 theme_set(cowplot::theme_cowplot())
 
 # Define variables
-file_directory <- "~/workspace/datasets/disease_activity/droplets"
+file_directory <- "../demo_data/droplets/"
 dataDirs <- list.files(
   path = file_directory,
   pattern = "raw_feature_bc_matrix|filtered_feature_bc_matrix|analysis",
@@ -61,8 +62,8 @@ multisample <- "hash"
 ```{r load data}
 # Load data from last step and samplesheet for object metadata
 # Here, gene expression matrices are simply taken as the adjusted counts output of the SoupX analysis
-gem_matrices <- readRDS(file = "../data/adjustCountList.RDS")
-samplesheet <- read_csv(file = "../data/da_samplesheet_final.csv") %>%
+gem_matrices <- readRDS(file = "../demo_data/adjustCountList.RDS")
+samplesheet <- read_csv(file = "../demo_data/da_samplesheet_final.csv") %>%
     clean_names()
 ```
 
@@ -194,8 +195,8 @@ gc()
 
 ```{r save data}
 # Save data for next step
-saveRDS(object = pre_qc, file = "../data/pre_qc.RDS")
-saveRDS(object = gem_classification, file = "../data/gem_classification.RDS")
+saveRDS(object = pre_qc, file = "../demo_data/pre_qc.RDS")
+saveRDS(object = gem_classification, file = "../demo_data/gem_classification.RDS")
 ```
 
 ```{r}

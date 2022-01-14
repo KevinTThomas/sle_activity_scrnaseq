@@ -1,0 +1,184 @@
+---
+title: "Analysis 04: Analysis and clustering"
+author: "Kevin Thomas"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  rmarkdown::github_document:
+    html_preview: false
+    toc: true
+    toc_depth: 3
+---
+
+```{css, echo=FALSE}
+    body .main-container {
+      max-width: 1500px !important;
+      width: 1500px !important;
+    }
+    body {
+      max-width: 1500px !important;
+    }
+```
+
+```{r setup, include=FALSE}
+# Set options
+options(width = 1200)
+knitr::opts_chunk$set(echo = TRUE, fig.width = 12, fig.height = 12)
+reticulate::use_condaenv(condaenv = "reticulate", required = TRUE, conda = "~/conda/bin/conda")
+options(future.globals.maxSize = +Inf)
+
+# Attach libraries
+source("../R/packages.R")
+
+# Parallelization
+BPPARAM = SnowParam(workers=ceiling(0.5*parallel::detectCores()), type = "SOCK")
+BNPARAM = HnswParam()
+BiocParallel::register(BPPARAM)
+future::plan(strategy = future::multisession, workers = parallel::detectCores())
+
+# Define custom functions
+source("../R/functions.R")
+
+# Set plot theme for any plots
+theme_set(cowplot::theme_cowplot())
+```
+
+## Initial analysis of QC'd cells
+
+```{r load qc object}
+qc_object <- readRDS(file = "../demo_data/qc_object.RDS")
+```
+
+### Normalization
+
+```{r normalization}
+# Reduce available cores to ensure sufficient memory per core
+future::plan(strategy = future::multiprocess, workers = ceiling(0.25*parallel::detectCores()))
+# SCTransform normalization. Regress out mitochondrial content, hemoglobin content, differences in Ig subclass, and cell cycle phase
+normalized_object <- SCTransform(
+    object = qc_object,
+    assay = "RNA",
+    vars.to.regress = c("percent_mt", "percent_hemo", grep(pattern = "[.]diff$", x = names(qc_object[[]]), value = TRUE)),
+    method="glmGamPoi"
+  )
+# Reset paralellization
+future::plan(strategy = future::multisession, workers = parallel::detectCores())
+```
+
+## Harmony on PC
+```{r harmonization}
+# Clear and free up memory
+rm(qc_object)
+gc()
+# Run PCA and harmonize on normalized gene expression and CITE expression
+harmonized_object <- normalized_object %>%
+  RunPCA(
+    object = .
+  ) %>%
+  FindPCAElbow(
+    assay = "SCT",
+    perform_new_pca = FALSE,
+    elbow_th = 0.025
+  ) %>%
+  RunHarmony(
+    object = .,
+    group.by.vars = c("run"),
+    assay.use = "SCT",
+    dims.use = 1:50
+  ) %>%
+  ScaleData(
+    object = .,
+    assay = "CITE"
+  ) %>%
+  `DefaultAssay<-`(
+    object = .,
+    value = "CITE"
+  ) %>%
+  RunPCA(
+    object = .,
+    features = rownames(.)[rownames(.) != "isotype-control"],
+    reduction.name = "pca_cite",
+    reduction.key = "citePCA_"
+  ) %>%
+  FindPCAElbow(
+    object = .,
+    assay = "CITE",
+    reduction = "pca_cite",
+    perform_new_pca = FALSE,
+    elbow_th = 0.025
+  ) %>%
+  RunHarmony(
+    object = .,
+    group.by.vars = c("run"),
+    assay.use = "CITE",
+    reduction = "pca_cite",
+    dims.use = 1:50,
+    reduction.save = "harmony_cite"
+  ) %>%
+  `DefaultAssay<-`(
+    object = .,
+    value = "SCT"
+  )
+```
+
+## Weighted nearest neighbors (wnn) analysis
+```{r wnn}
+# Clear and free up memory
+rm(normalized_object)
+gc()
+# Find weighted nearest neighbors with RNA and CITE
+wnn_obj <- harmonized_object %>%
+  FindMultiModalNeighbors(
+    object = .,
+    reduction.list = list("harmony", "harmony_cite"),
+    dims.list = list(1:.@misc$max_pca_dim, 1:.@misc$max_pca_cite_dim),
+    modality.weight.name = c("SCT.weight", "CITE.weight")
+  ) %>%
+  # Make UMAP reduction on wnn graph
+  RunUMAP(
+    object = .,
+    nn.name = "weighted.nn",
+    reduction.name = "umap_wnn",
+    reduction.key = "wnnUMAP_"
+  )
+```
+
+## Clustering
+```{r cluster}
+# Clear and free up memory
+rm(harmonized_object)
+gc()
+# Leiden clustering at multiple resolutions
+wnn_clust_obj <- wnn_obj %>%
+  (function(seurat_obj) {
+    obj <- as(object = seurat_obj@graphs$wsnn, Class = "dgCMatrix")
+    input <- igraph::graph_from_adjacency_matrix(adjmatrix = obj, weighted = TRUE)
+    clustering.results <- future.apply::future_lapply(
+      X = seq(0.2, 1.2, 0.2),
+      FUN = function (r) {
+        ids <- leiden::leiden(
+          object = input,
+          resolution_parameter = r,
+          seed = 42,
+          weights = NULL
+        )
+        names(x = ids) <- colnames(x = obj)
+        ids <- GroupSmallClusters(ids = ids, SNN = obj, threshold = 20, verbose = TRUE)
+        results <- list(factor(x = ids, levels = str_sort(unique(ids), numeric = TRUE)))
+        names(x = results) <- paste0('res.', r)
+        return(results)
+      }
+    )
+    clustering.results <- as.data.frame(x = clustering.results)
+    seurat_obj@meta.data[,paste0("wsnn.res.",seq(0.2,1.2,0.2))] <- clustering.results
+    return(seurat_obj)
+  })
+```
+
+```{r save data}
+# Save data for next step
+saveRDS(object = wnn_clust_obj, file = "../demo_data/wnn_clust_obj.RDS")
+```
+
+```{r}
+devtools::session_info()
+```

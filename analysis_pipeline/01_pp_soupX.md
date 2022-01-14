@@ -1,13 +1,32 @@
 Preprocessing 01: Ambient RNA removal
 ================
 Kevin Thomas
-13 January, 2022
+14 January, 2022
 
 -   [Using SoupX package to remove counts likely associated with ambient
     RNA in each
     run](#using-soupx-package-to-remove-counts-likely-associated-with-ambient-rna-in-each-run)
 
 ## Using SoupX package to remove counts likely associated with ambient RNA in each run
+
+``` r
+# variable set-up
+file_directory <- "../demo_data/droplets/"
+contam_gene_sets = list(
+  HG = c(
+    "HBA1",
+    "HBA2",
+    "HBB",
+    "HBD",
+    "HBE1",
+    "HBG1",
+    "HBG2",
+    "HBM",
+    "HBQ1",
+    "HBZ"
+  )
+) %>% lapply(function(x) paste0("GRCh38_", x))
+```
 
 ``` r
 # Search file_directory (directory containing cellRanger output files) for raw and filtered barcode matrices
@@ -45,7 +64,7 @@ sc_list <- future_map(
 ) %>% purrr::discard(.p = is.null)
 ```
 
-    ## Loading 1 of 10
+    ## Loading 1 of 1
 
     ## Loading raw count data
 
@@ -58,132 +77,6 @@ sc_list <- future_map(
     ## Loading extra analysis data where available
 
     ## Keeping sample s1a
-
-    ## Loading 2 of 10
-
-    ## Loading raw count data
-
-    ## 10X data contains more than one type and is being returned as a list containing matrices of each type.
-
-    ## Loading cell-only count data
-
-    ## 10X data contains more than one type and is being returned as a list containing matrices of each type.
-
-    ## Loading extra analysis data where available
-
-    ## Keeping sample s1b
-
-    ## Loading 3 of 10
-
-    ## Loading raw count data
-
-    ## 10X data contains more than one type and is being returned as a list containing matrices of each type.
-
-    ## Loading cell-only count data
-
-    ## 10X data contains more than one type and is being returned as a list containing matrices of each type.
-
-    ## Loading extra analysis data where available
-
-    ## Keeping sample s2a
-
-    ## Loading 4 of 10
-
-    ## Loading raw count data
-
-    ## 10X data contains more than one type and is being returned as a list containing matrices of each type.
-
-    ## Loading cell-only count data
-
-    ## 10X data contains more than one type and is being returned as a list containing matrices of each type.
-
-    ## Loading extra analysis data where available
-
-    ## Keeping sample s2b
-
-    ## Loading 5 of 10
-
-    ## Loading raw count data
-
-    ## 10X data contains more than one type and is being returned as a list containing matrices of each type.
-
-    ## Loading cell-only count data
-
-    ## 10X data contains more than one type and is being returned as a list containing matrices of each type.
-
-    ## Loading extra analysis data where available
-
-    ## Keeping sample s3a
-
-    ## Loading 6 of 10
-
-    ## Loading raw count data
-
-    ## 10X data contains more than one type and is being returned as a list containing matrices of each type.
-
-    ## Loading cell-only count data
-
-    ## 10X data contains more than one type and is being returned as a list containing matrices of each type.
-
-    ## Loading extra analysis data where available
-
-    ## Keeping sample s3b
-
-    ## Loading 7 of 10
-
-    ## Loading raw count data
-
-    ## 10X data contains more than one type and is being returned as a list containing matrices of each type.
-
-    ## Loading cell-only count data
-
-    ## 10X data contains more than one type and is being returned as a list containing matrices of each type.
-
-    ## Loading extra analysis data where available
-
-    ## Keeping sample s4a
-
-    ## Loading 8 of 10
-
-    ## Loading raw count data
-
-    ## 10X data contains more than one type and is being returned as a list containing matrices of each type.
-
-    ## Loading cell-only count data
-
-    ## 10X data contains more than one type and is being returned as a list containing matrices of each type.
-
-    ## Loading extra analysis data where available
-
-    ## Keeping sample s4b
-
-    ## Loading 9 of 10
-
-    ## Loading raw count data
-
-    ## 10X data contains more than one type and is being returned as a list containing matrices of each type.
-
-    ## Loading cell-only count data
-
-    ## 10X data contains more than one type and is being returned as a list containing matrices of each type.
-
-    ## Loading extra analysis data where available
-
-    ## Keeping sample s5a
-
-    ## Loading 10 of 10
-
-    ## Loading raw count data
-
-    ## 10X data contains more than one type and is being returned as a list containing matrices of each type.
-
-    ## Loading cell-only count data
-
-    ## 10X data contains more than one type and is being returned as a list containing matrices of each type.
-
-    ## Loading extra analysis data where available
-
-    ## Keeping sample s5b
 
 ``` r
 # Calculate the contamination using the human hemoglobin genes
@@ -212,87 +105,13 @@ contamCalcList <- future_map(
 ) %>% setNames(map_chr(sc_list, `$`, "channelName"))
 ```
 
-    ## Estimating non-expressing cells for 1 of 10: s1a
+    ## Estimating non-expressing cells for 1 of 1: s1a
 
     ## Using clusters without expressing cells.
 
-    ## Estimating contamination for 1 of 10: s1a
+    ## Estimating contamination for 1 of 1: s1a
 
     ## Estimated global contamination fraction of 8.61%
-
-    ## Estimating non-expressing cells for 2 of 10: s1b
-
-    ## Using clusters without expressing cells.
-
-    ## Estimating contamination for 2 of 10: s1b
-
-    ## Estimated global contamination fraction of 11.95%
-
-    ## Estimating non-expressing cells for 3 of 10: s2a
-
-    ## Using clusters without expressing cells.
-
-    ## Estimating contamination for 3 of 10: s2a
-
-    ## Estimated global contamination fraction of 8.44%
-
-    ## Estimating non-expressing cells for 4 of 10: s2b
-
-    ## Using clusters without expressing cells.
-
-    ## Estimating contamination for 4 of 10: s2b
-
-    ## Estimated global contamination fraction of 9.51%
-
-    ## Estimating non-expressing cells for 5 of 10: s3a
-
-    ## Using clusters without expressing cells.
-
-    ## Estimating contamination for 5 of 10: s3a
-
-    ## Estimated global contamination fraction of 5.62%
-
-    ## Estimating non-expressing cells for 6 of 10: s3b
-
-    ## Using clusters without expressing cells.
-
-    ## Estimating contamination for 6 of 10: s3b
-
-    ## Estimated global contamination fraction of 14.05%
-
-    ## Estimating non-expressing cells for 7 of 10: s4a
-
-    ## Using clusters without expressing cells.
-
-    ## Estimating contamination for 7 of 10: s4a
-
-    ## Warning in setContaminationFraction(sc, exp(coef(sc$fit)), forceAccept = forceAccept): Estimated contamination is very high (0.41).
-
-    ## Estimated global contamination fraction of 41.40%
-
-    ## Estimating non-expressing cells for 8 of 10: s4b
-
-    ## Using clusters without expressing cells.
-
-    ## Estimating contamination for 8 of 10: s4b
-
-    ## Estimated global contamination fraction of 28.14%
-
-    ## Estimating non-expressing cells for 9 of 10: s5a
-
-    ## Using clusters without expressing cells.
-
-    ## Estimating contamination for 9 of 10: s5a
-
-    ## Estimated global contamination fraction of 14.05%
-
-    ## Estimating non-expressing cells for 10 of 10: s5b
-
-    ## Using clusters without expressing cells.
-
-    ## Estimating contamination for 10 of 10: s5b
-
-    ## Estimated global contamination fraction of 14.13%
 
 ``` r
 # Adjust counts using calculated contamination fractions
@@ -334,335 +153,9 @@ adjustCountList <- map(
 
     ## Rounding to integers.
 
-    ## Warning in sparseMatrix(i = out@i[w] + 1, j = out@j[w] + 1, x = out@x[w], : 'giveCsparse' has been deprecated; setting 'repr = "T"' for you
-
-    ## Expanding counts from 16 clusters to 15083 cells.
-
-    ## Expanding cluster 1
-
-    ## Expanding cluster 10
-
-    ## Expanding cluster 11
-
-    ## Expanding cluster 12
-
-    ## Expanding cluster 13
-
-    ## Expanding cluster 14
-
-    ## Expanding cluster 15
-
-    ## Expanding cluster 16
-
-    ## Expanding cluster 2
-
-    ## Expanding cluster 3
-
-    ## Expanding cluster 4
-
-    ## Expanding cluster 5
-
-    ## Expanding cluster 6
-
-    ## Expanding cluster 7
-
-    ## Expanding cluster 8
-
-    ## Expanding cluster 9
-
-    ## Rounding to integers.
-
-    ## Warning in sparseMatrix(i = out@i[w] + 1, j = out@j[w] + 1, x = out@x[w], : 'giveCsparse' has been deprecated; setting 'repr = "T"' for you
-
-    ## Expanding counts from 15 clusters to 18595 cells.
-
-    ## Expanding cluster 1
-
-    ## Expanding cluster 10
-
-    ## Expanding cluster 11
-
-    ## Expanding cluster 12
-
-    ## Expanding cluster 13
-
-    ## Expanding cluster 14
-
-    ## Expanding cluster 15
-
-    ## Expanding cluster 2
-
-    ## Expanding cluster 3
-
-    ## Expanding cluster 4
-
-    ## Expanding cluster 5
-
-    ## Expanding cluster 6
-
-    ## Expanding cluster 7
-
-    ## Expanding cluster 8
-
-    ## Expanding cluster 9
-
-    ## Rounding to integers.
-
-    ## Warning in sparseMatrix(i = out@i[w] + 1, j = out@j[w] + 1, x = out@x[w], : 'giveCsparse' has been deprecated; setting 'repr = "T"' for you
-
-    ## Expanding counts from 16 clusters to 20346 cells.
-
-    ## Expanding cluster 1
-
-    ## Expanding cluster 10
-
-    ## Expanding cluster 11
-
-    ## Expanding cluster 12
-
-    ## Expanding cluster 13
-
-    ## Expanding cluster 14
-
-    ## Expanding cluster 15
-
-    ## Expanding cluster 16
-
-    ## Expanding cluster 2
-
-    ## Expanding cluster 3
-
-    ## Expanding cluster 4
-
-    ## Expanding cluster 5
-
-    ## Expanding cluster 6
-
-    ## Expanding cluster 7
-
-    ## Expanding cluster 8
-
-    ## Expanding cluster 9
-
-    ## Rounding to integers.
-
-    ## Warning in sparseMatrix(i = out@i[w] + 1, j = out@j[w] + 1, x = out@x[w], : 'giveCsparse' has been deprecated; setting 'repr = "T"' for you
-
-    ## Expanding counts from 20 clusters to 96006 cells.
-
-    ## Expanding cluster 1
-
-    ## Expanding cluster 10
-
-    ## Expanding cluster 11
-
-    ## Expanding cluster 12
-
-    ## Expanding cluster 13
-
-    ## Expanding cluster 14
-
-    ## Expanding cluster 15
-
-    ## Expanding cluster 16
-
-    ## Expanding cluster 17
-
-    ## Expanding cluster 18
-
-    ## Expanding cluster 19
-
-    ## Expanding cluster 2
-
-    ## Expanding cluster 20
-
-    ## Expanding cluster 3
-
-    ## Expanding cluster 4
-
-    ## Expanding cluster 5
-
-    ## Expanding cluster 6
-
-    ## Expanding cluster 7
-
-    ## Expanding cluster 8
-
-    ## Expanding cluster 9
-
-    ## Rounding to integers.
-
-    ## Warning in sparseMatrix(i = out@i[w] + 1, j = out@j[w] + 1, x = out@x[w], : 'giveCsparse' has been deprecated; setting 'repr = "T"' for you
-
-    ## Expanding counts from 12 clusters to 23256 cells.
-
-    ## Expanding cluster 1
-
-    ## Expanding cluster 10
-
-    ## Expanding cluster 11
-
-    ## Expanding cluster 12
-
-    ## Expanding cluster 2
-
-    ## Expanding cluster 3
-
-    ## Expanding cluster 4
-
-    ## Expanding cluster 5
-
-    ## Expanding cluster 6
-
-    ## Expanding cluster 7
-
-    ## Expanding cluster 8
-
-    ## Expanding cluster 9
-
-    ## Rounding to integers.
-
-    ## Warning in sparseMatrix(i = out@i[w] + 1, j = out@j[w] + 1, x = out@x[w], : 'giveCsparse' has been deprecated; setting 'repr = "T"' for you
-
-    ## Expanding counts from 20 clusters to 67823 cells.
-
-    ## Expanding cluster 1
-
-    ## Expanding cluster 10
-
-    ## Expanding cluster 11
-
-    ## Expanding cluster 12
-
-    ## Expanding cluster 13
-
-    ## Expanding cluster 14
-
-    ## Expanding cluster 15
-
-    ## Expanding cluster 16
-
-    ## Expanding cluster 17
-
-    ## Expanding cluster 18
-
-    ## Expanding cluster 19
-
-    ## Expanding cluster 2
-
-    ## Expanding cluster 20
-
-    ## Expanding cluster 3
-
-    ## Expanding cluster 4
-
-    ## Expanding cluster 5
-
-    ## Expanding cluster 6
-
-    ## Expanding cluster 7
-
-    ## Expanding cluster 8
-
-    ## Expanding cluster 9
-
-    ## Rounding to integers.
-
-    ## Warning in sparseMatrix(i = out@i[w] + 1, j = out@j[w] + 1, x = out@x[w], : 'giveCsparse' has been deprecated; setting 'repr = "T"' for you
-
-    ## Expanding counts from 16 clusters to 53137 cells.
-
-    ## Expanding cluster 1
-
-    ## Expanding cluster 10
-
-    ## Expanding cluster 11
-
-    ## Expanding cluster 12
-
-    ## Expanding cluster 13
-
-    ## Expanding cluster 14
-
-    ## Expanding cluster 15
-
-    ## Expanding cluster 16
-
-    ## Expanding cluster 2
-
-    ## Expanding cluster 3
-
-    ## Expanding cluster 4
-
-    ## Expanding cluster 5
-
-    ## Expanding cluster 6
-
-    ## Expanding cluster 7
-
-    ## Expanding cluster 8
-
-    ## Expanding cluster 9
-
-    ## Rounding to integers.
-
-    ## Warning in sparseMatrix(i = out@i[w] + 1, j = out@j[w] + 1, x = out@x[w], : 'giveCsparse' has been deprecated; setting 'repr = "T"' for you
-
-    ## Expanding counts from 10 clusters to 27980 cells.
-
-    ## Expanding cluster 1
-
-    ## Expanding cluster 10
-
-    ## Expanding cluster 2
-
-    ## Expanding cluster 3
-
-    ## Expanding cluster 4
-
-    ## Expanding cluster 5
-
-    ## Expanding cluster 6
-
-    ## Expanding cluster 7
-
-    ## Expanding cluster 8
-
-    ## Expanding cluster 9
-
-    ## Rounding to integers.
-
-    ## Warning in sparseMatrix(i = out@i[w] + 1, j = out@j[w] + 1, x = out@x[w], : 'giveCsparse' has been deprecated; setting 'repr = "T"' for you
-
-    ## Expanding counts from 11 clusters to 17946 cells.
-
-    ## Expanding cluster 1
-
-    ## Expanding cluster 10
-
-    ## Expanding cluster 11
-
-    ## Expanding cluster 2
-
-    ## Expanding cluster 3
-
-    ## Expanding cluster 4
-
-    ## Expanding cluster 5
-
-    ## Expanding cluster 6
-
-    ## Expanding cluster 7
-
-    ## Expanding cluster 8
-
-    ## Expanding cluster 9
-
-    ## Rounding to integers.
-
 ``` r
 # Save data for next step
-saveRDS(object = adjustCountList, file = "../data/adjustCountList.RDS")
+saveRDS(object = adjustCountList, file = "../demo_data/adjustCountList.RDS")
 ```
 
 ``` r
@@ -679,7 +172,7 @@ devtools::session_info()
     ##  collate  en_US.UTF-8                 
     ##  ctype    en_US.UTF-8                 
     ##  tz       Etc/UTC                     
-    ##  date     2022-01-13                  
+    ##  date     2022-01-14                  
     ## 
     ## ─ Packages ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
     ##  package              * version    date       lib source                                        
@@ -861,7 +354,7 @@ devtools::session_info()
     ##  scuttle              * 1.2.1      2021-08-05 [1] Bioconductor                                  
     ##  sessioninfo            1.1.1      2018-11-05 [1] RSPM (R 4.1.0)                                
     ##  Seurat               * 4.0.3      2021-08-13 [1] Github (satijalab/Seurat@9b38929)             
-    ##  SeuratBubblePlot     * 0.4.2      2022-01-13 [1] Github (KevinTThomas/SeuratBubblePlot@5e48bb0)
+    ##  SeuratBubblePlot     * 0.4.2      2021-08-13 [1] Github (milescsmith/SeuratBubblePlot@e0f2abf) 
     ##  SeuratObject         * 4.0.2      2021-06-09 [1] RSPM (R 4.1.0)                                
     ##  shiny                * 1.6.0      2021-01-25 [1] RSPM (R 4.1.0)                                
     ##  SingleCellExperiment * 1.14.1     2021-08-13 [1] bioc_git2r (@5357eff)                         

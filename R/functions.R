@@ -91,13 +91,17 @@ FindPCAElbow <- function(object,
     pca <- rpca(A = t(expr_data),
                 k = n_pcs)
     
-    pca_sdev_drop <- c(diff(pca$sdev), 0) / -pca$sdev
+    pca_var_drop <- c(diff(pca$sdev^2), 0) / -pca$sdev^2
   } else{
-    pca_sdev_drop <- c(diff(object[[reduction]]@stdev), 0) / -object[[reduction]]@stdev
+    pca_var_drop <- c(diff(object[[reduction]]@stdev^2), 0) / -object[[reduction]]@stdev^2
   }
+  # eval(parse(text = paste0("object@misc$", name, " <- rev(which(pca_sdev_drop > elbow_th))[1]")))
   
-  eval(parse(text = paste0("object@misc$", name, " <- rev(which(pca_sdev_drop > elbow_th))[1]")))
-  
+  pc_below_th <- which(pca_var_drop-elbow_th<0)
+  pc_th <- split(pc_below_th, cumsum(c(1, diff(pc_below_th) != 1))) %>%
+    .[[which(map_dbl(.,length) > 1)[1]]] %>%
+    .[1]-1
+  eval(parse(text = paste0("object@misc$", name, " <- ", pc_th)))
   return(object) 
 }
 

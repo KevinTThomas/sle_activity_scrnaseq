@@ -4,6 +4,7 @@ author: "Kevin Thomas"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output:
   rmarkdown::github_document:
+    html_preview: false
     toc: true
     toc_depth: 3
 ---
@@ -39,9 +40,13 @@ source("../R/functions.R")
 
 # Set plot theme for any plots
 theme_set(cowplot::theme_cowplot())
+```
 
-# Variables
-file_directory <- "~/workspace/datasets/disease_activity/droplets"
+## Using SoupX package to remove counts likely associated with ambient RNA in each run
+
+```{r variablies}
+# variable set-up
+file_directory <- "../demo_data/droplets/"
 contam_gene_sets = list(
   HG = c(
     "HBA1",
@@ -57,8 +62,6 @@ contam_gene_sets = list(
   )
 ) %>% lapply(function(x) paste0("GRCh38_", x))
 ```
-
-## Using SoupX package to remove counts likely associated with ambient RNA in each run
 
 ```{r read files}
 # Search file_directory (directory containing cellRanger output files) for raw and filtered barcode matrices
@@ -137,7 +140,7 @@ adjustCountList <- map(
 
 ```{r save data}
 # Save data for next step
-saveRDS(object = adjustCountList, file = "../data/adjustCountList.RDS")
+saveRDS(object = adjustCountList, file = "../demo_data/adjustCountList.RDS")
 ```
 
 ```{r}
