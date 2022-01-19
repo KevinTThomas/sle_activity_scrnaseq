@@ -3,13 +3,13 @@
 #' @title PurgeXenoGenes
 #'
 #' @description Removes counts and gene loadings for a secondary species and strips the primary species
-#' prefix from the remaining genes.  Useful when cleaning an object that had controls cells added for 
+#' prefix from the remaining genes.  Useful when cleaning an object that had controls cells added for
 #' multi-modal assays such as CITE-seq or REAP-seq.
 #'
-#' @param object Formerly mixed species Seurat object 
-#' @param primary_species_prefix Literal string or regex prefix denoting 
+#' @param object Formerly mixed species Seurat object
+#' @param primary_species_prefix Literal string or regex prefix denoting
 #' genes from the species of interest
-#' @param secondary_species_prefix Literal string or regex prefix 
+#' @param secondary_species_prefix Literal string or regex prefix
 #' denoting genes from the species used as control
 #'
 #' @importFrom stringr str_detect str_remove
@@ -24,34 +24,34 @@ PurgeXenoGenes <- function(object,
                            secondary_species_prefix){
   # clean assays
   for (i in names(object@assays)){
-    
-    counts <- object[[i]]@counts[str_detect(string = rownames(object[[i]]@counts), 
-                                            pattern = secondary_species_prefix, 
+
+    counts <- object[[i]]@counts[str_detect(string = rownames(object[[i]]@counts),
+                                            pattern = secondary_species_prefix,
                                             negate = TRUE),]
-    data <- object[[i]]@data[str_detect(string = rownames(object[[i]]@data), 
-                                        pattern = secondary_species_prefix, 
+    data <- object[[i]]@data[str_detect(string = rownames(object[[i]]@data),
+                                        pattern = secondary_species_prefix,
                                         negate = TRUE),]
-    meta.features <- object[[i]]@meta.features[str_detect(string = rownames(object[[i]]@meta.features), 
-                                                          pattern = secondary_species_prefix, 
+    meta.features <- object[[i]]@meta.features[str_detect(string = rownames(object[[i]]@meta.features),
+                                                          pattern = secondary_species_prefix,
                                                           negate = TRUE),]
     rownames(counts) %<>% str_remove(pattern = primary_species_prefix)
     rownames(data) %<>% str_remove(pattern = primary_species_prefix)
     rownames(meta.features) %<>% str_remove(pattern = primary_species_prefix)
-    
+
     replacement_assay <- CreateAssayObject(counts = counts)
     replacement_assay@data <- data
     replacement_assay@meta.features <- meta.features
     object[[i]] <- replacement_assay
   }
-  
+
   # clean reductions
   for (j in names(object@reductions)){
-    feature.loadings <- object[[j]]@feature.loadings[str_detect(string = rownames(object[[j]]@feature.loadings), 
-                                                                pattern = secondary_species_prefix, 
+    feature.loadings <- object[[j]]@feature.loadings[str_detect(string = rownames(object[[j]]@feature.loadings),
+                                                                pattern = secondary_species_prefix,
                                                                 negate = TRUE),]
     rownames(feature.loadings) %<>% str_remove(pattern = primary_species_prefix)
   }
-  
+
   object <- SeuratObject::LogSeuratCommand(object = object)
   return(object)
 }
@@ -67,8 +67,8 @@ PurgeXenoGenes <- function(object,
 #'
 #' @importFrom rsvd rpca
 #' @importFrom Seurat GetAssayData
-#' 
-#' @return A copy of the object with the 
+#'
+#' @return A copy of the object with the
 #' largest significant principal component stored
 #' as `max_pca_dim` in the object@misc slot
 #' @export
@@ -82,7 +82,7 @@ FindPCAElbow <- function(object,
                          n_pcs = 100,
                          elbow_th = 0.025,
                          perform_new_pca = FALSE){
-  
+
   if (isTRUE(perform_new_pca) | !(reduction %in% names(object@reductions))){
     expr_data <- GetAssayData(object,
                               assay = assay,
@@ -90,27 +90,27 @@ FindPCAElbow <- function(object,
       as.matrix()
     pca <- rpca(A = t(expr_data),
                 k = n_pcs)
-    
+
     pca_var_drop <- c(diff(pca$sdev^2), 0) / -pca$sdev^2
   } else{
     pca_var_drop <- c(diff(object[[reduction]]@stdev^2), 0) / -object[[reduction]]@stdev^2
   }
   # eval(parse(text = paste0("object@misc$", name, " <- rev(which(pca_sdev_drop > elbow_th))[1]")))
-  
+
   pc_below_th <- which(pca_var_drop-elbow_th<0)
   pc_th <- split(pc_below_th, cumsum(c(1, diff(pc_below_th) != 1))) %>%
     .[[which(map_dbl(.,length) > 1)[1]]] %>%
     .[1]-1
   eval(parse(text = paste0("object@misc$", name, " <- ", pc_th)))
-  return(object) 
+  return(object)
 }
 
 #' @title bottom95_rna_count
 #'
 #' @description Calculate the bottom 95% percentile for nCount_RNA of a Seurat object
 #' and store it in the `misc` slot
-#' 
-#' @param object 
+#'
+#' @param object
 #'
 #' @return
 #' @export
@@ -124,12 +124,12 @@ bottom99_rna_count <- function(object){
 
 
 #' @title CleanAssayFeatureNames
-#' 
+#'
 #' @description Remove a pattern from all rownames within a Seurat Assay object
 #'
-#' @param object 
-#' @param pattern 
-#' @param assay 
+#' @param object
+#' @param pattern
+#' @param assay
 #'
 #' @return
 #' @export
@@ -139,7 +139,7 @@ CleanAssayFeatureNames <- function(object,
                                    pattern,
                                    assay){
   # clean assays
-  rownames(object[[assay]]@counts) <- str_remove(string = rownames(object[[assay]]@counts), 
+  rownames(object[[assay]]@counts) <- str_remove(string = rownames(object[[assay]]@counts),
                                                  pattern = pattern)
   rownames(object[[assay]]@data) <- str_remove(string = rownames(object[[assay]]@data),
                                                pattern = pattern)
@@ -147,14 +147,14 @@ CleanAssayFeatureNames <- function(object,
                                                      pattern = pattern)
   rownames(object[[assay]]@meta.features) <- str_remove(string = rownames(object[[assay]]@meta.features),
                                                         pattern = pattern)
-  
+
   return(object)
 }
 
 #' @title adv_grouped_violins
 #'
 #' @description group subset of violin ensemble
-#' 
+#'
 #' @param object Seurat object to plot
 #' @param groups_show subset of clusters to plot
 #' @param ... parameters to pass to ViolinEnsemble
@@ -168,7 +168,7 @@ adv_grouped_violins <- function(object, groups_show, alpha = 0.1, pt_size = 0.1,
     `[[`("data") %>%
     filter(cluster %in% groups_show) %>%
     arrange(cluster)
-  
+
   plots <- map(unique(plot_data$cluster), function(i){
     plot_data %>%
       filter(cluster == i) %>%
@@ -196,20 +196,20 @@ adv_grouped_violins <- function(object, groups_show, alpha = 0.1, pt_size = 0.1,
         size = pt_size) +
       facet_row(facets = vars(feature), scales = "free_x")
   })
-  
+
   widths <- plot_data %>%
     select(cluster, feature) %>%
     group_by(cluster) %>%
     summarise(feature_count = length(unique(feature))) %>%
     pull(feature_count)
-  
+
   if (split_facet == "cols"){
-    pg <- plot_grid(plotlist = plots, nrow = 1, rel_widths = widths)  
+    pg <- plot_grid(plotlist = plots, nrow = 1, rel_widths = widths)
   } else if (split_facet == "rows"){
-    pg <- plot_grid(plotlist = plots, ncol = 1, rel_widths = widths)  
+    pg <- plot_grid(plotlist = plots, ncol = 1, rel_widths = widths)
   }
-  
-  return(pg)  
+
+  return(pg)
 }
 
 #' @title citeNormalize
@@ -217,8 +217,8 @@ adv_grouped_violins <- function(object, groups_show, alpha = 0.1, pt_size = 0.1,
 #' @param cite.assay Assay variable pointing to the cite-seq data
 #' @param hto.assay Assay variable pointing to the hash-tagging data
 #' @param object A seurat object
-#' 
-#' @return 
+#'
+#' @return
 #' @export
 citeNormalize <- function (object, cite.assay, hto.assay) {
   cite.counts = GetAssayData(
@@ -286,45 +286,45 @@ clusterScan <- function(object,
                         dims_use = NULL,
                         clustering_reduction = NULL,
                         verbose = FALSE){
-  
+
   sc <- import(module = "scanpy", delay_load = TRUE)
-  
+
   assay <- assay %||% ifelse(test = "SCT" %in% names(object@assays),
                              yes = "SCT",
                              no = "RNA")
-  
+
   clustering_reduction <- clustering_reduction %||% ifelse(test = "harmony" %in% Reductions(object),
                                                            yes = "harmony",
                                                            no = "pca")
-  
+
   dims_use <- dims_use %||% ifelse(test = "max_pca_dim" %in% object@misc,
                                    yes = object@misc[["max_pca_dim"]],
                                    no = ncol(object[[clustering_reduction]]@cell.embeddings))
-  
+
   if (verbose) message("Converting object")
   adata <- convert_to_anndata(object,
                               assay = assay)
-  
+
   if (verbose) message("Finding neighbors")
   sc$pp$neighbors(adata = adata,
-                  use_rep = str_glue("X_{clustering_reduction}"), 
+                  use_rep = str_glue("X_{clustering_reduction}"),
                   n_pcs = dims_use)
-  
+
   if (verbose) message("Finding clusters")
   clusters <- map_dfc(seq(from = starting_res,
-                          to = ending_res, 
+                          to = ending_res,
                           by = increment),
                       function(i){
-                        current_clusters <- sc$tl$leiden(adata, 
-                                                         resolution = i, 
+                        current_clusters <- sc$tl$leiden(adata,
+                                                         resolution = i,
                                                          copy = TRUE)$obs["leiden"] %>%
                           `names<-`(paste0(tolower(assay),".res.", i)) %>%
-                          as_tibble() %>% 
-                          mutate_if(is.factor, 
+                          as_tibble() %>%
+                          mutate_if(is.factor,
                                     .funs = ~as_factor(as.integer(.))
                           )
                       })
-  
+
   # We need to prevent any resolutions where there was only one cluster from being tested
   clusters_use <- clusters %>%
     pivot_longer(cols = everything(),
@@ -334,17 +334,17 @@ clusterScan <- function(object,
     summarize(count = length(unique(cluster))) %>%
     filter(count > 1) %>%
     pull(res)
-  
+
   if (verbose) message(str_glue('Using: {glue::glue_collapse(clusters_use, sep = " ")}'))
   object@meta.data <- object@meta.data %>%
     as_tibble(rownames = "cell") %>%
-    left_join(mutate(clusters[,clusters_use], 
+    left_join(mutate(clusters[,clusters_use],
                      cell = rownames(object@meta.data)),
               by = "cell") %>%
     column_to_rownames("cell")
-  
+
   object@misc$clusters_use <- clusters_use
-  
+
   return(object)
 }
 
@@ -354,22 +354,22 @@ clusterScan <- function(object,
 #                     differing_cluster_DEGs = 10,
 #                     fdr_thresh = 0.05,
 #                     verbose = TRUE){
-# 
+#
 #   assay <- assay %||% ifelse(test = "SCT" %in% names(object@assays),
 #                              yes = "SCT",
 #                              no = "RNA")
-#   
+#
 #   clustering_reduction <- clustering_reduction %||% ifelse(test = "harmony" %in% Reductions(object),
 #                                                            yes = "harmony",
 #                                                            no = "pca")
-#   
+#
 #   if (verbose) message("Beginning DEG testing")
 #   deg_counts <- future_map_int(seq_along(object@misc$clusters_use),
 #                                .progress = TRUE,
 #                         function(i){
 #                           if (verbose) message(paste("Testing ", i))
 #                           Idents(object) <- object@meta.data[[object@misc$clusters_use[[i]]]]
-#                           
+#
 #                           sCVdata <- CalcSCV(
 #                             inD = object,
 #                             cl = Idents(object),
@@ -382,21 +382,21 @@ clusterScan <- function(object,
 #                             calcDEvsRest = TRUE,
 #                             calcDEcombn = TRUE
 #                           )
-#                           
+#
 #                           DE_bw_NN <- sapply(DEneighb(sCVdata, fdr_thresh), nrow)
 #                           # ^ counts # of DE genes between neighbouring clusters at 5% FDR
 #                           min(DE_bw_NN)
 #                         })
-#   
+#
 #   if (verbose) message("Finished DEG testing")
-#   
+#
 #   optimal_res <- object@misc$clusters_use[[max(which(deg_counts > differing_cluster_DEGs))]]
-#   
+#
 #   Idents(object = object) <- object@meta.data[[optimal_res]]
 #   object@misc$optimal_res <- str_remove(string = optimal_res, pattern = "^res.")
 #   object@misc$clusters_use <- NULL
 #   return(object)
-#   
+#
 # }
 
 autoRes <- function(object,
@@ -407,7 +407,7 @@ autoRes <- function(object,
   first_below_threshold = min(which(deg_counts < differing_cluster_DEGs))
   if (is.finite(first_below_threshold)){
     optimal_res <- object@misc$clusters_use[[max(first_below_threshold-1,1)]]
-    
+
     Idents(object = object) <- object@meta.data[[optimal_res]]
     object@misc$optimal_res <- str_remove(string = optimal_res, pattern = "^res.")
     return(object)
@@ -423,8 +423,8 @@ autoRes <- function(object,
 #' @param gem_matrix Matrix containing gene expression data only. Assumes that rows are genes and that columns are cells.
 #' @param adt_matrix Matrix containing antibody capture data. If NULL, assumes that no antibody capture data exists.
 #' @param hashtags Character vector containing cell hashing tags (e.g. "HTO1") found in the antibody capture data. If FALSE, assumes that no cell hashing has taken place.
-#' 
-#' @return 
+#'
+#' @return
 #' @export
 constructGEMs <- function(sample=NULL, gem_matrix, adt_matrix=NULL, norm_adt_matrix=NULL, hashtags=FALSE) {
   # Add sample names to matrix
@@ -433,7 +433,7 @@ constructGEMs <- function(sample=NULL, gem_matrix, adt_matrix=NULL, norm_adt_mat
   }else{
     rna_counts <- gem_matrix
   }
-  
+
   # If there's antibody data, make a separate matrix
   if (!is.null(adt_matrix)) {
     if (!is.null(sample)) {
@@ -449,7 +449,7 @@ constructGEMs <- function(sample=NULL, gem_matrix, adt_matrix=NULL, norm_adt_mat
         norm_adt_counts <- norm_adt_matrix
       }
     }
-    
+
     # If there are hashtags in the antibody counts, make them a separate count matrix
     if (!is_false(hashtags) && any(hashtags %in% rownames(adt_counts))) {
       hto_counts <- adt_counts[hashtags[hashtags %in% rownames(adt_counts)], ]
@@ -472,10 +472,10 @@ constructGEMs <- function(sample=NULL, gem_matrix, adt_matrix=NULL, norm_adt_mat
     adt_counts <- NULL
     hto_counts <- NULL
   }
-  
+
   # Make the seurat object with the rna counts
   seurat_obj <- CreateSeuratObject(counts = rna_counts)
-  
+
   # Make the adt assay object, if it exists
   if (!is.null(adt_counts)) {
     # If there are normalized counts, add them into the assay
@@ -488,7 +488,7 @@ constructGEMs <- function(sample=NULL, gem_matrix, adt_matrix=NULL, norm_adt_mat
   }else{
     adt_obj <- NULL
   }
-  
+
   # Make the hto assay object, if it exists
   if (!is.null(hto_counts)) {
     # If there are normalized counts, add them into the assay
@@ -501,7 +501,7 @@ constructGEMs <- function(sample=NULL, gem_matrix, adt_matrix=NULL, norm_adt_mat
   }else{
     hto_obj <- NULL
   }
-  
+
   # Check to see if the seurat object has >10 cells and >100 genes, and make the object
   if (ncol(seurat_obj) > 10 && nrow(seurat_obj) > 100) {
     # Add in multimodal data if it exists
@@ -516,7 +516,11 @@ constructGEMs <- function(sample=NULL, gem_matrix, adt_matrix=NULL, norm_adt_mat
       message(paste0("Demuxing hashtags with deMULTIplex to rescue singlets"))
       seurat_obj <- AddMetaData(
         object = seurat_obj,
-        metadata = deMULTIplex(counts = seurat_obj[["HTO"]]@counts, plot.name = paste0("deMULTIplex_qc_plots/",sample,".deMULTIplex.quantile.pdf"))
+        metadata =
+          deMULTIplex(
+            counts = seurat_obj[["HTO"]]@counts,
+            plot.name = paste0("deMULTIplex_qc_plots/", sample, ".deMULTIplex.quantile.pdf")
+            )
       )
       seurat_singlets <- length(seurat_obj$hash.ID %nin% c("Doublet", "Negative"))
       deMULTIplex_singlets <- length(seurat_obj$deMULTIplex.calls.rescued %nin% c("Doublet", "Negative"))
@@ -538,13 +542,13 @@ constructGEMs <- function(sample=NULL, gem_matrix, adt_matrix=NULL, norm_adt_mat
 #' @param samplesheet Samplesheet containing per sample data to be added.
 #' @param multiplex Character vector indicating what kind of multiplexing, if any, should be used. "none" assumes no multiplexing is occuring. "hash" looks for hashtags in the samplesheet and adds them according to exisiting metadata in the object for cell hashing. "demuxlet" indicates that samples have been demuxed in some other fashion (e.g. by genetics) and you are providing a dataframe indicating which cells are assigned to which identity.
 #' @param barcode_df A dataframe containing barcode-sample assignments, such as the \code{[prefix].best} file generated by demuxlet.
-#' 
-#' @return 
+#'
+#' @return
 #' @export
 assignMetaData <- function(seurat_obj, samplesheet, multiplex=c("none", "hash", "demuxlet"), barcode_df=NULL){
   # Determine the sample name, hooked at the beginning of the cell names
   sample = gsub("_.*$", "", seurat_obj[["RNA"]]@counts@Dimnames[[2]][[1]])
-  
+
   # If no multiplexing, assign by sample name
   if (multiplex == "none") {
     sample_meta <- samplesheet %>%
@@ -582,8 +586,8 @@ assignMetaData <- function(seurat_obj, samplesheet, multiplex=c("none", "hash", 
 #' @title getClosestFactor
 #' @description Gets the closest factor pair for an integer
 #' @param int A positive integer as a numeric value.
-#' 
-#' @return 
+#'
+#' @return
 #' @export
 getClosestFactors <- function(int){
   if (length(int) != 1) {
@@ -605,7 +609,7 @@ getClosestFactors <- function(int){
 #' @param list A list of gene expression matrices to feed the function
 #' @param primary_species_prefix
 #' @param secondary_species_prefix
-#' @return 
+#' @return
 #' @export
 calcGEMClassification <- function(list, primary_species_prefix, secondary_species_prefix) {
   # create df of all cells with both species counts
@@ -780,7 +784,7 @@ calcGEMClassification <- function(list, primary_species_prefix, secondary_specie
   ) %>%
     mutate(call = replace_na(call, "Multiplet"))
   return(df1)
-  
+
 }
 
 ScoreIgDiffs <- function (object, assay = "RNA", ig.hc, ig.lc, conserve.memory = FALSE) {
@@ -794,7 +798,7 @@ ScoreIgDiffs <- function (object, assay = "RNA", ig.hc, ig.lc, conserve.memory =
     conserve.memory = conserve.memory
   )
   # future::plan(strategy = future::multicore, workers = ceiling(parallel::detectCores()))
-  
+
   # Score each heavy chain gene as a module
   message("Scoring heavy chain differences...")
   ig.hc.scores <- AddModuleScore(
@@ -805,7 +809,7 @@ ScoreIgDiffs <- function (object, assay = "RNA", ig.hc, ig.lc, conserve.memory =
     nbin = 20
   ) %>%
     .[[grep(pattern = "[.][0-9]+$", x = colnames(x = .[[]]), value = TRUE)]]
-  
+
   # Calculate difference between all heavy chain module scores
   hc.diff <- combn(
     x = colnames(ig.hc.scores),
@@ -818,7 +822,7 @@ ScoreIgDiffs <- function (object, assay = "RNA", ig.hc, ig.lc, conserve.memory =
     FUN = function (x) {paste0(str_remove(string = x[1], pattern = "[.][0-9]+$"), ".", str_remove(string = x[2], pattern = "[.][0-9]+$"), ".diff")}
   )
   rownames(hc.diff) <- rownames(ig.hc.scores)
-  
+
   # Score each light chain gene as a module
   message("Scoring light chain differences...")
   ig.lc.scores <- AddModuleScore(
@@ -829,7 +833,7 @@ ScoreIgDiffs <- function (object, assay = "RNA", ig.hc, ig.lc, conserve.memory =
     nbin = 20
   ) %>%
     .[[grep(pattern = "[.][0-9]+$", x = colnames(x = .[[]]), value = TRUE)]]
-  
+
   # Calculate difference between each light chain module scores
   lc.diff <- combn(
     x = colnames(ig.lc.scores),
@@ -842,7 +846,7 @@ ScoreIgDiffs <- function (object, assay = "RNA", ig.hc, ig.lc, conserve.memory =
     FUN = function (x) {paste0(str_remove(string = x[1], pattern = "[.][0-9]+$"), ".", str_remove(string = x[2], pattern = "[.][0-9]+$"), ".diff")}
   )
   rownames(lc.diff) <- rownames(ig.lc.scores)
-  
+
   # Score cell cycle modules
   message("Scoring cell cycle differences...")
   cc.scores <- CellCycleScoring(
@@ -853,46 +857,46 @@ ScoreIgDiffs <- function (object, assay = "RNA", ig.hc, ig.lc, conserve.memory =
     nbin = 20
   ) %>%
     .[[c("S.Score", "G2M.Score", "Phase")]]
-  
+
   # Find difference in modules
   cc.scores$cc.diff <- cc.scores$S.Score - cc.scores$G2M.Score
-  
+
   # Add to the metadata
   object@meta.data <- bind_cols(object@meta.data, as.data.frame(hc.diff), as.data.frame(lc.diff), as.data.frame(cc.scores[,c("cc.diff", "Phase")]))
-  
+
   return(object)
 }
 
-HTODemux2 <- function (object, assay = "HTO", positive.quantile.range = seq(0.8, 0.95, 0.05), init = NULL, 
-                       nstarts = 100, kfunc = "clara", nsamples = 100, seed = 42, 
-                       verbose = TRUE) 
+HTODemux2 <- function (object, assay = "HTO", positive.quantile.range = seq(0.8, 0.95, 0.05), init = NULL,
+                       nstarts = 100, kfunc = "clara", nsamples = 100, seed = 42,
+                       verbose = TRUE)
 {
   if (!is.null(x = seed)) {
     set.seed(seed = seed)
   }
   assay <- assay %||% DefaultAssay(object = object)
   data <- GetAssayData(object = object, assay = assay)
-  counts <- GetAssayData(object = object, assay = assay, slot = "counts")[, 
+  counts <- GetAssayData(object = object, assay = assay, slot = "counts")[,
                                                                           colnames(x = object)]
   counts <- as.matrix(x = counts)
   ncenters <- init %||% (nrow(x = data) + 1)
   switch(EXPR = kfunc, kmeans = {
-    init.clusters <- kmeans(x = t(x = GetAssayData(object = object, 
+    init.clusters <- kmeans(x = t(x = GetAssayData(object = object,
                                                    assay = assay)), centers = ncenters, nstart = nstarts)
     Idents(object = object, cells = names(x = init.clusters$cluster)) <- init.clusters$cluster
   }, clara = {
-    init.clusters <- cluster::clara(x = t(x = GetAssayData(object = object, 
+    init.clusters <- cluster::clara(x = t(x = GetAssayData(object = object,
                                                            assay = assay)), k = ncenters, samples = nsamples)
-    Idents(object = object, cells = names(x = init.clusters$clustering), 
+    Idents(object = object, cells = names(x = init.clusters$clustering),
            drop = TRUE) <- init.clusters$clustering
   }, stop("Unknown k-means function ", kfunc, ", please choose from 'kmeans' or 'clara'"))
-  average.expression <- AverageExpression(object = object, 
+  average.expression <- AverageExpression(object = object,
                                           assays = assay, verbose = FALSE)[[assay]]
   if (sum(average.expression == 0) > 0) {
     stop("Cells with zero counts exist as a cluster.")
   }
   discrete <- GetAssayData(object = object, assay = assay)
-  # Set up 
+  # Set up
   cutoffs <- vector(mode = "list", length = nrow(x = data))
   names(cutoffs) <- rownames(x = data)
   # Calculate cutoff counts for each hashtag in the data
@@ -947,33 +951,33 @@ HTODemux2 <- function (object, assay = "HTO", positive.quantile.range = seq(0.8,
   hash.max <- apply(X = data, MARGIN = 2, FUN = max)
   hash.maxID <- apply(X = data, MARGIN = 2, FUN = which.max)
   hash.second <- apply(X = data, MARGIN = 2, FUN = Seurat:::MaxN, N = 2)
-  hash.maxID <- as.character(x = donor.id[sapply(X = 1:ncol(x = data), 
+  hash.maxID <- as.character(x = donor.id[sapply(X = 1:ncol(x = data),
                                                  FUN = function(x) {
                                                    return(which(x = data[, x] == hash.max[x])[1])
                                                  })])
-  hash.secondID <- as.character(x = donor.id[sapply(X = 1:ncol(x = data), 
+  hash.secondID <- as.character(x = donor.id[sapply(X = 1:ncol(x = data),
                                                     FUN = function(x) {
                                                       return(which(x = data[, x] == hash.second[x])[1])
                                                     })])
   hash.margin <- hash.max - hash.second
   doublet_id <- sapply(X = 1:length(x = hash.maxID), FUN = function(x) {
-    return(paste(sort(x = c(hash.maxID[x], hash.secondID[x])), 
+    return(paste(sort(x = c(hash.maxID[x], hash.secondID[x])),
                  collapse = "_"))
   })
   classification <- classification.global
   classification[classification.global == "Negative"] <- "Negative"
-  classification[classification.global == "Singlet"] <- hash.maxID[which(x = classification.global == 
+  classification[classification.global == "Singlet"] <- hash.maxID[which(x = classification.global ==
                                                                            "Singlet")]
-  classification[classification.global == "Doublet"] <- doublet_id[which(x = classification.global == 
+  classification[classification.global == "Doublet"] <- doublet_id[which(x = classification.global ==
                                                                            "Doublet")]
-  classification.metadata <- data.frame(hash.maxID, hash.secondID, 
+  classification.metadata <- data.frame(hash.maxID, hash.secondID,
                                         hash.margin, classification, classification.global)
-  colnames(x = classification.metadata) <- paste(assay, c("maxID", 
-                                                          "secondID", "margin", "classification", "classification.global"), 
+  colnames(x = classification.metadata) <- paste(assay, c("maxID",
+                                                          "secondID", "margin", "classification", "classification.global"),
                                                  sep = "_")
   object <- AddMetaData(object = object, metadata = classification.metadata)
   Idents(object) <- paste0(assay, "_classification")
-  doublets <- rownames(x = object[[]])[which(object[[paste0(assay, 
+  doublets <- rownames(x = object[[]])[which(object[[paste0(assay,
                                                             "_classification.global")]] == "Doublet")]
   Idents(object = object, cells = doublets) <- "Doublet"
   object$hash.ID <- Idents(object = object)
@@ -986,10 +990,10 @@ deMULTIplex <- function(counts, plot.name) {
   bar.table <- as.data.frame(t(counts))
   bar.table.full <- bar.table
   gg.list <- list()
-  
+
   ## Set iter
   iter <- 1
-  
+
   ## Perform Quantile Sweep
   bar.table_sweep.list <- list()
   n <- 0
@@ -1002,7 +1006,7 @@ deMULTIplex <- function(counts, plot.name) {
     )
     names(bar.table_sweep.list)[n] <- paste("q=",q,sep="")
   }
-  
+
   ## Identify ideal inter-maxima quantile to set barcode-specific thresholds
   threshold.results <- findThresh(call.list=bar.table_sweep.list)
   gg.list[[iter]] <- ggplot(data=threshold.results$res, aes(x=q, y=Proportion, color=Subset)) +
@@ -1012,11 +1016,11 @@ deMULTIplex <- function(counts, plot.name) {
     geom_vline(xintercept=threshold.results$extrema, lty=2) +
     scale_color_manual(values=c("red","black","blue")) +
     coord_fixed()
-  
+
   ## Finalize classifications, remove negative cells
   round.calls <- classifyCells(bar.table, q=findQ(threshold.results$res, threshold.results$extrema))
   neg.cells <- names(round.calls)[which(round.calls == "Negative")]
-  
+
   ## Check number of negative cells called, take them out of table
   num.neg.cells.in.round <- length(which(round.calls == "Negative"))
   if (num.neg.cells.in.round != 0) {
@@ -1025,12 +1029,12 @@ deMULTIplex <- function(counts, plot.name) {
   }else{
     message(paste0("Done! Took ", iter, " rounds to classify all cells."))
   }
-  
+
   ## Repeat until all cells are classified
   while (num.neg.cells.in.round != 0) {
     ## Increase iter
     iter <- iter + 1
-    
+
     ## Perform Quantile Sweep
     bar.table_sweep.list <- list()
     n <- 0
@@ -1043,7 +1047,7 @@ deMULTIplex <- function(counts, plot.name) {
       )
       names(bar.table_sweep.list)[n] <- paste("q=",q,sep="")
     }
-    
+
     ## Identify ideal inter-maxima quantile to set barcode-specific thresholds
     threshold.results <- findThresh(call.list=bar.table_sweep.list)
     gg.list[[iter]] <- ggplot(data=threshold.results$res, aes(x=q, y=Proportion, color=Subset)) +
@@ -1053,16 +1057,16 @@ deMULTIplex <- function(counts, plot.name) {
       geom_vline(xintercept=threshold.results$extrema, lty=2) +
       scale_color_manual(values=c("red","black","blue")) +
       coord_fixed()
-    
+
     if(length(threshold.results$extrema) == 0) {
       message(paste0("Round ", iter, ": Stopping, as no threshold extrema could be found."))
       break
     }
-    
+
     ## Finalize classifications, remove negative cells
     round.calls <- classifyCells(bar.table, q=findQ(threshold.results$res, threshold.results$extrema))
     neg.cells <- c(neg.cells, names(round.calls)[which(round.calls == "Negative")])
-    
+
     ## Check number of negative cells called, take them out of table
     num.neg.cells.in.round <- length(which(round.calls == "Negative"))
     if (num.neg.cells.in.round != 0) {
@@ -1072,12 +1076,12 @@ deMULTIplex <- function(counts, plot.name) {
       message(paste0("Round ", iter, ": Done! All cells classified."))
     }
   }
-  
+
   ## Finalize calls
   final.calls <- c(round.calls[which(round.calls != "Negative")], rep("Negative",length(neg.cells)))
   names(final.calls) <- c(names(round.calls[which(round.calls != "Negative")]), neg.cells)
   final.calls.rescued <- final.calls
-  
+
   ## Make sure each tag has cells assigned to it, and rescue those tags that don't
   for (tag in colnames(bar.table.full)) {
     if (length(which(final.calls == tag)) == 0) {
@@ -1112,7 +1116,7 @@ deMULTIplex <- function(counts, plot.name) {
       next
     }
   }
-  
+
   ## Perform semi-supervised negative cell reclassification
   reclass.cells <- findReclassCells(bar.table.full, names(final.calls.rescued)[which(final.calls.rescued=="Negative")])
   invisible(
@@ -1167,11 +1171,11 @@ deMULTIplex <- function(counts, plot.name) {
       setkey(MatchRate_mean)
     cutoff <- dt[J(reclass.res$MatchRate_mean[1]), roll = "nearest"]$ClassStability
   }
-  
+
   ## Visualize results
-  gg.list[[length(gg.list) + 1]] <- ggplot(reclass.res[-1, ], aes(x=ClassStability, y=MatchRate_mean)) + 
+  gg.list[[length(gg.list) + 1]] <- ggplot(reclass.res[-1, ], aes(x=ClassStability, y=MatchRate_mean)) +
     geom_point() +
-    xlim(c(nrow(reclass.res)-1,1)) + 
+    xlim(c(nrow(reclass.res)-1,1)) +
     ylim(c(0, reclass.res$MatchRate_mean[1]+3*reclass.res$MatchRate_sd[1]+0.05)) +
     geom_errorbar(aes(ymin=MatchRate_mean-MatchRate_sd, ymax=MatchRate_mean+MatchRate_sd), width=.1) +
     geom_vline(xintercept = cutoff, col = "blue") +
@@ -1179,15 +1183,15 @@ deMULTIplex <- function(counts, plot.name) {
     geom_hline(yintercept = reclass.res$MatchRate_mean[1]+3*reclass.res$MatchRate_sd[1], color="red",lty=2) +
     geom_hline(yintercept = reclass.res$MatchRate_mean[1]-3*reclass.res$MatchRate_sd[1], color="red",lty=2) +
     labs(title = paste0("Class Stability Cutoff = ", cutoff))
-  
+
   ## Confirm the cutoff (taken out for full automation)
   # print(gg.list[[length(gg.list)]])
   # cutoff <- as.integer(readline("Please confirm Class Stability Cutoff: "))
-  
+
   ## Put new cutoff in place
-  gg.list[[length(gg.list)]] <- ggplot(reclass.res[-1, ], aes(x=ClassStability, y=MatchRate_mean)) + 
+  gg.list[[length(gg.list)]] <- ggplot(reclass.res[-1, ], aes(x=ClassStability, y=MatchRate_mean)) +
     geom_point() +
-    xlim(c(nrow(reclass.res)-1,1)) + 
+    xlim(c(nrow(reclass.res)-1,1)) +
     ylim(c(0, reclass.res$MatchRate_mean[1]+3*reclass.res$MatchRate_sd[1]+0.05)) +
     geom_errorbar(aes(ymin=MatchRate_mean-MatchRate_sd, ymax=MatchRate_mean+MatchRate_sd), width=.1) +
     geom_vline(xintercept = cutoff, col = "blue") +
@@ -1195,11 +1199,11 @@ deMULTIplex <- function(counts, plot.name) {
     geom_hline(yintercept = reclass.res$MatchRate_mean[1]+3*reclass.res$MatchRate_sd[1], color="red",lty=2) +
     geom_hline(yintercept = reclass.res$MatchRate_mean[1]-3*reclass.res$MatchRate_sd[1], color="red",lty=2) +
     labs(title = paste0("Class Stability Cutoff = ", cutoff))
-  
+
   ## Finalize negative cell rescue results
   rescue.ind <- which(reclass.cells$ClassStability >= cutoff) ## Note: Value will be dataset-specific
   final.calls.rescued[rownames(reclass.cells)[rescue.ind]] <- reclass.cells$Reclassification[rescue.ind]
-  
+
   # Report of quantile selection
   pdf(file = plot.name, width = 13.333, height = 7.5)
   print(
@@ -1208,12 +1212,12 @@ deMULTIplex <- function(counts, plot.name) {
     )
   )
   dev.off()
-  
+
   df <- data.frame(
     deMULTIplex.calls = final.calls,
     deMULTIplex.calls.rescued = final.calls.rescued
   )
-  
+
   return(df)
 }
 

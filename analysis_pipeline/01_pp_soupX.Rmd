@@ -23,15 +23,16 @@ output:
 # Set options
 options(width = 1200)
 knitr::opts_chunk$set(echo = TRUE, fig.width = 12, fig.height = 12)
-reticulate::use_condaenv(condaenv = "reticulate", required = TRUE, conda = "~/conda/bin/conda")
 options(future.globals.maxSize = +Inf)
 
 # Attach libraries
-source("../R/packages.R")
+library(tidyverse)
+library(SoupX)
+library(Matrix)
+library(furrr)
 
 # Parallelization
-BPPARAM = SnowParam(workers=ceiling(0.5*parallel::detectCores()), type = "SOCK")
-BNPARAM = HnswParam()
+BPPARAM = BiocParallel::SnowParam(workers=ceiling(0.5*parallel::detectCores()), type = "SOCK")
 BiocParallel::register(BPPARAM)
 future::plan(strategy = future::multisession, workers = parallel::detectCores())
 
@@ -39,14 +40,14 @@ future::plan(strategy = future::multisession, workers = parallel::detectCores())
 source("../R/functions.R")
 
 # Set plot theme for any plots
-theme_set(cowplot::theme_cowplot())
+ggplot2::theme_set(cowplot::theme_cowplot())
 ```
 
 ## Using SoupX package to remove counts likely associated with ambient RNA in each run
 
 ```{r variablies}
 # variable set-up
-file_directory <- "../demo_data/droplets/"
+file_directory <- "../demo_data/droplets"
 contam_gene_sets = list(
   HG = c(
     "HBA1",
@@ -60,7 +61,7 @@ contam_gene_sets = list(
     "HBQ1",
     "HBZ"
   )
-) %>% lapply(function(x) paste0("GRCh38_", x))
+) |> lapply(function(x) paste0("GRCh38_", x))
 ```
 
 ```{r read files}
@@ -71,32 +72,34 @@ dataDirs <- list.files(
   full.names = TRUE,
   recursive = TRUE,
   include.dirs = TRUE
-) %>%
-  str_remove("/raw_feature_bc_matrix|/filtered_feature_bc_matrix|/analysis") %>%
+) |>
+  stringr::str_remove("/raw_feature_bc_matrix|/filtered_feature_bc_matrix|/analysis") |>
   unique()
 ```
 
 ```{r read in data}
 # Read in gene expression barcode data
-sc_list <- future_map(
-  .x = 1:length(dataDirs),
-  .f = function (i) {
-    message(str_glue("Loading {i} of {length(dataDirs)}"))
+sc_list <- furrr::future_imap(
+  .x = dataDirs,
+  .f = function (i, j) {
+    # message(stringr::str_glue("Loading {j} of {length(dataDirs)}"))
+    message(i)
     sc <- load10X(
-      dataDir = dataDirs[[i]],
-      channelName = basename(dataDirs[[i]]),
+      dataDir = i,
+      channelName = basename(i),
       includeFeatures = c("Gene Expression")
     )
     if (mean(rowSums(sc$toc)) > 10 && mean(colSums(sc$toc)) > 100) {
-      message(glue("Keeping sample {basename(dataDirs[[i]])}"))
+      message(str_glue("Keeping sample {basename(i)}"))
       return(sc)
-    }else{
-      message(glue("Discarding sample {basename(dataDirs[[i]])}; insufficient quality"))
+    } else {
+      message(str_glue("Discarding sample {basename(i)}; insufficient quality"))
       sc <- NULL
       return(sc)
     }
   }
-) %>% purrr::discard(.p = is.null)
+) |>
+  purrr::discard(.p = is.null)
 ```
 
 ```{r calculate contamination}
@@ -123,7 +126,7 @@ contamCalcList <- future_map(
       )
     }
   }
-) %>% setNames(map_chr(sc_list, `$`, "channelName"))
+) |> setNames(map_chr(sc_list, `$`, "channelName"))
 ```
 
 ```{r adjust RNA counts to subtract ambient signals}
@@ -133,7 +136,7 @@ adjustCountList <- map(
   .f = adjustCounts,
   verbose = 2,
   roundToInt = TRUE
-) %>% setNames(
+)  |> setNames(
   nm = map_chr(.x = sc_list, .f = `$`, "channelName")
   )
 ```
