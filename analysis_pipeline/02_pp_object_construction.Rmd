@@ -42,11 +42,11 @@ library(sp)
 library(tidyr)
 library(furrr)
 library(dsb)
-library(conflicted)
 library(dplyr)
 library(rlang)
-
-conflict_prefer("fliter", "dplyr")
+library(deMULTIplex)
+library(data.table)
+library(cowplot)
 
 # Parallelization
 BPPARAM = SnowParam(workers=ceiling(0.5*parallel::detectCores()), type = "SOCK")
@@ -188,8 +188,8 @@ gems_meta = future_map(
       barcode_df = NULL
     )
   }
-) %>%
-  setName(names(gems)) |>
+) |>
+  setNames(names(gems)) |>
   discard(.p = is.null)
 
 # Free memory

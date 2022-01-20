@@ -23,23 +23,33 @@ output:
 # Set options
 options(width = 1200)
 knitr::opts_chunk$set(echo = TRUE, fig.width = 12, fig.height = 12)
-reticulate::use_condaenv(condaenv = "reticulate", required = TRUE, conda = "~/conda/bin/conda")
 options(future.globals.maxSize = +Inf)
 
 # Attach libraries
-source("../R/packages.R")
+library(Seurat)
+library(BiocParallel)
+library(BiocNeighbors)
+library(future)
+library(cowplot)
+library(ggplot2)
+library(magrittr)
+library(harmony)
+library(purrr)
+library(igraph)
+library(leiden)
+library(future.apply)
+library(stringr)
 
 # Parallelization
 BPPARAM = SnowParam(workers=ceiling(0.5*parallel::detectCores()), type = "SOCK")
 BNPARAM = HnswParam()
-BiocParallel::register(BPPARAM)
-future::plan(strategy = future::multisession, workers = parallel::detectCores())
+register(BPPARAM)
 
 # Define custom functions
 source("../R/functions.R")
 
 # Set plot theme for any plots
-theme_set(cowplot::theme_cowplot())
+theme_set(theme_cowplot())
 ```
 
 ## Initial analysis of QC'd cells
@@ -52,7 +62,7 @@ qc_object <- readRDS(file = "../demo_data/qc_object.RDS")
 
 ```{r normalization}
 # Reduce available cores to ensure sufficient memory per core
-future::plan(strategy = future::multiprocess, workers = ceiling(0.25*parallel::detectCores()))
+plan(strategy = multisession, workers = ceiling(0.25*parallel::detectCores()))
 # SCTransform normalization. Regress out mitochondrial content, hemoglobin content, differences in Ig subclass, and cell cycle phase
 normalized_object <- SCTransform(
     object = qc_object,
@@ -61,7 +71,7 @@ normalized_object <- SCTransform(
     method="glmGamPoi"
   )
 # Reset paralellization
-future::plan(strategy = future::multisession, workers = parallel::detectCores())
+plan(strategy = multisession, workers = parallel::detectCores())
 ```
 
 ## Harmony on PC
@@ -151,11 +161,11 @@ gc()
 wnn_clust_obj <- wnn_obj %>%
   (function(seurat_obj) {
     obj <- as(object = seurat_obj@graphs$wsnn, Class = "dgCMatrix")
-    input <- igraph::graph_from_adjacency_matrix(adjmatrix = obj, weighted = TRUE)
-    clustering.results <- future.apply::future_lapply(
+    input <- graph_from_adjacency_matrix(adjmatrix = obj, weighted = TRUE)
+    clustering.results <- future_lapply(
       X = seq(0.2, 1.2, 0.2),
       FUN = function (r) {
-        ids <- leiden::leiden(
+        ids <- leiden(
           object = input,
           resolution_parameter = r,
           seed = 42,
@@ -170,7 +180,7 @@ wnn_clust_obj <- wnn_obj %>%
     )
     clustering.results <- as.data.frame(x = clustering.results)
     seurat_obj@meta.data[,paste0("wsnn.res.",seq(0.2,1.2,0.2))] <- clustering.results
-    return(seurat_obj)
+    seurat_obj
   })
 ```
 

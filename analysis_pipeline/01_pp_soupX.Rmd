@@ -26,7 +26,9 @@ knitr::opts_chunk$set(echo = TRUE, fig.width = 12, fig.height = 12)
 options(future.globals.maxSize = +Inf)
 
 # Attach libraries
-library(tidyverse)
+library(dplyr)
+library(stringr)
+library(purrr)
 library(SoupX)
 library(Matrix)
 library(furrr)
@@ -73,7 +75,7 @@ dataDirs <- list.files(
   recursive = TRUE,
   include.dirs = TRUE
 ) |>
-  stringr::str_remove("/raw_feature_bc_matrix|/filtered_feature_bc_matrix|/analysis") |>
+  str_remove("/raw_feature_bc_matrix|/filtered_feature_bc_matrix|/analysis") |>
   unique()
 ```
 
@@ -99,7 +101,7 @@ sc_list <- furrr::future_imap(
     }
   }
 ) |>
-  purrr::discard(.p = is.null)
+  discard(.p = is.null)
 ```
 
 ```{r calculate contamination}
