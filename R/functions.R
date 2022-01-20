@@ -304,7 +304,7 @@ assignMetaData <- function(seurat_obj, samplesheet, multiplex = c("none", "hash"
               .data = samplesheet,
               run == unique(seurat_obj@meta.data$run)
               ) |>
-            select(-run)
+          dplyr::select(-run)
         for (x in names(sample_meta)) {
             tag_meta <- character(length = ncol(seurat_obj))
             names(tag_meta) <- colnames(seurat_obj)
@@ -314,7 +314,7 @@ assignMetaData <- function(seurat_obj, samplesheet, multiplex = c("none", "hash"
                       .data = sample_meta,
                       hashtag == y
                       ) |>
-                    select(x)
+                    dplyr::select(x)
             }
             seurat_obj[[x]] <- unlist(tag_meta)
         }
@@ -481,10 +481,8 @@ calcGEMClassification <- function(list, primary_species_prefix, secondary_specie
             )
 
             mm_indices <- which(mm_indices != 0)
-            barcodes <- filter(.data = df1, run == r) |>
-            extract(mm_indices, c("id", "run", "cells"))
-
-            barcodes
+            barcodes <- filter(.data = df1, run == r, id %in% mm_indices) |>
+              extract(c("id", "run", "cells"))
         }
     ) |>
         set_names(unique(df1[["run"]])) |>
@@ -515,8 +513,8 @@ calcGEMClassification <- function(list, primary_species_prefix, secondary_specie
             )
 
             hs_indices <- which(hs_indices != 0)
-            barcodes <- filter(.data = df1, run == r) |>
-                extract(hs_indices, c("id", "run", "cells"))
+            barcodes <- filter(.data = df1, run == r, id %in% hs_indices) |>
+              extract(c("id", "run", "cells"))
             barcodes
         }
     ) |>

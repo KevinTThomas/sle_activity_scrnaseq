@@ -21,22 +21,36 @@ output:
 
 ```{r setup, include=FALSE}
 # Set options
+here::i_am("analysis/05_plotting.Rmd")
 options(width = 1200)
 knitr::opts_chunk$set(echo = TRUE, fig.width = 12, fig.height = 12)
-reticulate::use_condaenv(condaenv = "reticulate", required = TRUE, conda = "~/conda/bin/conda")
+reticulate::use_condaenv(condaenv = "r-reticulate", required = TRUE, conda = "~/.local/share/r-miniconda/bin/conda")
 options(future.globals.maxSize = +Inf)
 
 # Attach libraries
-source("../R/packages.R")
+library(here)
+library(Seurat)
+library(BiocParallel)
+library(BiocNeighbors)
+library(future)
+library(cowplot)
+library(ggplot2)
+library(magrittr)
+library(purrr)
+library(dplyr)
+library(tibble)
+library(presto)
+library(ggrepel)
+library(devtools)
 
 # Parallelization
-BPPARAM = SnowParam(workers=ceiling(0.5*parallel::detectCores()), type = "SOCK")
-BNPARAM = HnswParam()
-BiocParallel::register(BPPARAM)
-future::plan(strategy = future::multisession, workers = parallel::detectCores())
+BPPARAM <- SnowParam(workers = ceiling(0.5 * parallel::detectCores()), type = "SOCK")
+BNPARAM <- HnswParam()
+register(BPPARAM)
+plan(strategy = multisession, workers = parallel::detectCores())
 
 # Define custom functions
-source("../R/functions.R")
+source(file = here("R", "functions.R"))
 
 # Set plot theme for any plots
 theme_set(cowplot::theme_cowplot())
@@ -45,7 +59,7 @@ theme_set(cowplot::theme_cowplot())
 ## Plotting of initial analysis
 
 ```{r load qc object}
-wnn_clust_obj <- readRDS(file = "../demo_data/wnn_clust_obj.RDS")
+wnn_clust_obj <- readRDS(file = here("demo_data", "wnn_clust_obj.RDS"))
 ```
 
 ### All resolutions
@@ -53,10 +67,10 @@ wnn_clust_obj <- readRDS(file = "../demo_data/wnn_clust_obj.RDS")
 # Plot
 map(
   .x = names(select(wnn_clust_obj@meta.data, starts_with(match = "wsnn."))),
-  .f = function (x) {
+  .f = function(x) {
     DimPlot(object = wnn_clust_obj, reduction = "umap_wnn", group.by = x, label = TRUE) +
       NoLegend() +
-      labs(title =x) +
+      labs(title = x) +
       coord_fixed()
   }
 ) %>% plot_grid(plotlist = ., ncol = 3)
@@ -66,15 +80,15 @@ map(
 ```{r top5 gene, fig.height=19.526, fig.width=40}
 map(
   .x = names(select(wnn_clust_obj@meta.data, starts_with(match = "wsnn."))),
-  .f = function (x) {
+  .f = function(x) {
     # x <- names(select(wnn_clust_obj@meta.data, starts_with(match = "wsnn.")))[1]
     top5_gene <- wilcoxauc(
       X = wnn_clust_obj,
       seurat_assay = "SCT",
       group_by = x
-    ) %>%
-      as_tibble() %>%
-      dplyr::select(
+    ) |>
+      as_tibble() |>
+      select(
         feature,
         cluster = group,
         p_val = pval,
@@ -83,26 +97,26 @@ map(
         pct.1 = pct_in,
         pct.2 = pct_out,
         auc
-      ) %>%
-      filter(p_val_adj < 0.05) %>%
-      mutate(cluster = factor(cluster, levels = levels(wnn_clust_obj@meta.data[,x]))) %>%
-      split.data.frame(x = ., .$cluster) %>%
-      map(dplyr::filter, avg_logFC > 0, pct.2 < 0.5) %>%
-      map(arrange, cluster, desc(auc), p_val_adj) %>%
-      map(top_n, 5, auc) %>%
-      map(dplyr::select, feature) %>%
-      map(deframe) %>%
+      ) |>
+      filter(p_val_adj < 0.05) |>
+      mutate(cluster = factor(cluster, levels = levels(wnn_clust_obj@meta.data[, x]))) %>%
+      split.data.frame(use_series(., cluster)) |>
+      map(filter, avg_logFC > 0, pct.2 < 0.5) |>
+      map(arrange, cluster, desc(auc), p_val_adj) |>
+      map(top_n, 5, auc) |>
+      map(select, feature) |>
+      map(deframe) |>
       map(paste, collapse = "\n")
-    
+
     DimPlot(object = wnn_clust_obj, reduction = "umap_wnn", group.by = x) +
       geom_label_repel(
-      data = DimPlot(wnn_clust_obj, reduction = "umap_wnn", group.by = x)[[1]]$data %>%
-        group_by_at(x) %>%
-        summarize_all(median),
-      aes(wnnUMAP_1, wnnUMAP_2, label = paste0(get(x), "\n", top5_gene), fill = get(x))
+        data = DimPlot(wnn_clust_obj, reduction = "umap_wnn", group.by = x)[[1]]$data |>
+          group_by_at(x) |>
+          summarize_all(median),
+        aes(wnnUMAP_1, wnnUMAP_2, label = paste0(get(x), "\n", top5_gene), fill = get(x))
       ) +
       NoLegend() +
-      labs(title =x) +
+      labs(title = x) +
       coord_fixed()
   }
 ) %>% plot_grid(plotlist = ., ncol = 3)
@@ -112,15 +126,15 @@ map(
 ```{r top5 cite, fig.height=19.526, fig.width=40}
 map(
   .x = names(select(wnn_clust_obj@meta.data, starts_with(match = "wsnn."))),
-  .f = function (x) {
+  .f = function(x) {
     # x <- names(select(wnn_clust_obj@meta.data, starts_with(match = "wsnn.")))[1]
     top5_gene <- wilcoxauc(
       X = wnn_clust_obj,
       seurat_assay = "CITE",
       group_by = x
-    ) %>%
-      as_tibble() %>%
-      dplyr::select(
+    ) |>
+      as_tibble() |>
+      select(
         feature,
         cluster = group,
         p_val = pval,
@@ -129,27 +143,27 @@ map(
         pct.1 = pct_in,
         pct.2 = pct_out,
         auc
-      ) %>%
-      filter(p_val_adj < 0.05) %>%
-      mutate(cluster = factor(cluster, levels = levels(wnn_clust_obj@meta.data[,x]))) %>%
-      split.data.frame(x = ., .$cluster) %>%
-      map(dplyr::filter, avg_logFC > 0) %>%
-      map(arrange, cluster, desc(avg_logFC), p_val_adj) %>%
-      map(top_n, 5, avg_logFC) %>%
-      # map(top_n, 5, auc) %>%
-      map(dplyr::select, feature) %>%
-      map(deframe) %>%
+      ) |>
+      filter(p_val_adj < 0.05) |>
+      mutate(cluster = factor(cluster, levels = levels(wnn_clust_obj@meta.data[, x]))) %>%
+      split.data.frame(use_series(., cluster)) %>%
+      map(filter, avg_logFC > 0) |>
+      map(arrange, cluster, desc(avg_logFC), p_val_adj) |>
+      map(top_n, 5, avg_logFC) |>
+      # map(top_n, 5, auc) |>
+      map(select, feature) |>
+      map(deframe) |>
       map(paste, collapse = "\n")
-    
+
     DimPlot(object = wnn_clust_obj, reduction = "umap_wnn", group.by = x) +
       geom_label_repel(
-      data = DimPlot(wnn_clust_obj, reduction = "umap_wnn", group.by = x)[[1]]$data %>%
-        group_by_at(x) %>%
-        summarize_all(median),
-      aes(wnnUMAP_1, wnnUMAP_2, label = paste0(get(x), "\n", top5_gene), fill = get(x))
+        data = DimPlot(wnn_clust_obj, reduction = "umap_wnn", group.by = x)[[1]]$data |>
+          group_by_at(x) |>
+          summarize_all(median),
+        aes(wnnUMAP_1, wnnUMAP_2, label = paste0(get(x), "\n", top5_gene), fill = get(x))
       ) +
       NoLegend() +
-      labs(title =x) +
+      labs(title = x) +
       coord_fixed()
   }
 ) %>% plot_grid(plotlist = ., ncol = 3)
@@ -159,14 +173,17 @@ map(
 ```{r genes, fig.height=11.25, fig.width=20}
 FeaturePlot(
   `DefaultAssay<-`(object = wnn_clust_obj, value = "SCT"),
-  features = c("CD74", "MS4A1", "JCHAIN", "MZB1", "ZNF385D", "SOX4", "HLA-DPB1", "FCER1A", "S100A8", "LYZ", "GNLY", "NKG7", "TCF4", "IRF7", "CD3D", "IL32"),
+  features = c(
+    "CD74", "MS4A1", "JCHAIN", "MZB1", "ZNF385D", "SOX4", "HLA-DPB1",
+    "FCER1A", "S100A8", "LYZ", "GNLY", "NKG7", "TCF4", "IRF7", "CD3D", "IL32"
+  ),
   reduction = "umap_wnn",
-  coord.fixed = T, 
+  coord.fixed = T,
   cols = c("lightgrey", "blue2"),
   order = T,
   combine = FALSE
-) %>%
-  map(`+`, labs(x = NULL, y = NULL)) %>%
+) |>
+  map(add, labs(x = NULL, y = NULL)) %>%
   plot_grid(plotlist = ., align = "hv")
 ```
 
@@ -174,18 +191,21 @@ FeaturePlot(
 ```{r CITE, fig.height=11.25, fig.width=20}
 FeaturePlot(
   `DefaultAssay<-`(object = wnn_clust_obj, value = "CITE"),
-  features = c("CD19", "CD21", "CD38", "CD27", "CD34", "CD117", "CD1c", "HLA-DR", "CD11c", "CD14", "CD56", "CD16", "CD123", "CD4", "CD8a", "CD127"),
+  features = c(
+    "CD19", "CD21", "CD38", "CD27", "CD34", "CD117", "CD1c", "HLA-DR", "CD11c",
+    "CD14", "CD56", "CD16", "CD123", "CD4", "CD8a", "CD127"
+  ),
   reduction = "umap_wnn",
-  coord.fixed = T, 
+  coord.fixed = T,
   cols = c("lightgrey", "red2"),
   min.cutoff = "q05",
   max.cutoff = "q95",
   combine = FALSE
-) %>%
-  map(`+`, labs(x = NULL, y = NULL)) %>%
+) |>
+  map(add, labs(x = NULL, y = NULL)) %>%
   plot_grid(plotlist = ., align = "hv")
 ```
 
 ```{r}
-devtools::session_info()
+session_info()
 ```

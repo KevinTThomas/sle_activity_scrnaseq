@@ -21,17 +21,18 @@ output:
 
 ```{r setup, include=FALSE}
 # Set options
+here::i_am("analysis/04_analysis.Rmd")
 options(width = 1200)
+reticulate::use_condaenv(condaenv = "r-reticulate", required = TRUE, conda = "~/.local/share/r-miniconda/bin/conda")
 knitr::opts_chunk$set(echo = TRUE, fig.width = 12, fig.height = 12)
 options(future.globals.maxSize = +Inf)
 
 # Attach libraries
+library(here)
 library(Seurat)
 library(BiocParallel)
 library(BiocNeighbors)
 library(future)
-library(cowplot)
-library(ggplot2)
 library(magrittr)
 library(harmony)
 library(purrr)
@@ -39,37 +40,45 @@ library(igraph)
 library(leiden)
 library(future.apply)
 library(stringr)
+library(devtools)
 
 # Parallelization
-BPPARAM = SnowParam(workers=ceiling(0.5*parallel::detectCores()), type = "SOCK")
-BNPARAM = HnswParam()
+BPPARAM <- SnowParam(workers = ceiling(0.5 * parallel::detectCores()), type = "SOCK")
+BNPARAM <- HnswParam()
 register(BPPARAM)
 
 # Define custom functions
-source("../R/functions.R")
-
-# Set plot theme for any plots
-theme_set(theme_cowplot())
+source(here("R", "functions.R"))
 ```
 
 ## Initial analysis of QC'd cells
 
 ```{r load qc object}
-qc_object <- readRDS(file = "../demo_data/qc_object.RDS")
+qc_object <- readRDS(file = here("demo_data", "qc_object.RDS"))
 ```
 
 ### Normalization
 
 ```{r normalization}
 # Reduce available cores to ensure sufficient memory per core
-plan(strategy = multisession, workers = ceiling(0.25*parallel::detectCores()))
-# SCTransform normalization. Regress out mitochondrial content, hemoglobin content, differences in Ig subclass, and cell cycle phase
+plan(strategy = multisession, workers = ceiling(0.25 * parallel::detectCores()))
+# SCTransform normalization. Regress out mitochondrial content,
+# hemoglobin content, differences in Ig subclass, and cell cycle phase
 normalized_object <- SCTransform(
-    object = qc_object,
-    assay = "RNA",
-    vars.to.regress = c("percent_mt", "percent_hemo", grep(pattern = "[.]diff$", x = names(qc_object[[]]), value = TRUE)),
-    method="glmGamPoi"
-  )
+  object = qc_object,
+  assay = "RNA",
+  vars.to.regress =
+    c(
+      "percent_mt",
+      "percent_hemo",
+      grep(
+        pattern = "[.]diff$",
+        x = names(qc_object[[]]),
+        value = TRUE
+      )
+    ),
+  method = "glmGamPoi"
+)
 # Reset paralellization
 plan(strategy = multisession, workers = parallel::detectCores())
 ```
@@ -80,52 +89,43 @@ plan(strategy = multisession, workers = parallel::detectCores())
 rm(qc_object)
 gc()
 # Run PCA and harmonize on normalized gene expression and CITE expression
-harmonized_object <- normalized_object %>%
-  RunPCA(
-    object = .
-  ) %>%
+harmonized_object <- normalized_object |>
+  RunPCA() |>
   FindPCAElbow(
     assay = "SCT",
     perform_new_pca = FALSE,
     elbow_th = 0.025
-  ) %>%
+  ) |>
   RunHarmony(
-    object = .,
     group.by.vars = c("run"),
     assay.use = "SCT",
     dims.use = 1:50
-  ) %>%
+  ) |>
   ScaleData(
-    object = .,
     assay = "CITE"
-  ) %>%
+  ) |>
   `DefaultAssay<-`(
-    object = .,
     value = "CITE"
   ) %>%
   RunPCA(
-    object = .,
     features = rownames(.)[rownames(.) != "isotype-control"],
     reduction.name = "pca_cite",
     reduction.key = "citePCA_"
-  ) %>%
+  ) |>
   FindPCAElbow(
-    object = .,
     assay = "CITE",
     reduction = "pca_cite",
     perform_new_pca = FALSE,
     elbow_th = 0.025
-  ) %>%
+  ) |>
   RunHarmony(
-    object = .,
     group.by.vars = c("run"),
     assay.use = "CITE",
     reduction = "pca_cite",
     dims.use = 1:50,
     reduction.save = "harmony_cite"
-  ) %>%
+  ) |>
   `DefaultAssay<-`(
-    object = .,
     value = "SCT"
   )
 ```
@@ -136,16 +136,19 @@ harmonized_object <- normalized_object %>%
 rm(normalized_object)
 gc()
 # Find weighted nearest neighbors with RNA and CITE
-wnn_obj <- harmonized_object %>%
+wnn_obj <-
   FindMultiModalNeighbors(
-    object = .,
+    object = harmonized_object,
     reduction.list = list("harmony", "harmony_cite"),
-    dims.list = list(1:.@misc$max_pca_dim, 1:.@misc$max_pca_cite_dim),
+    dims.list =
+      list(
+        seq(harmonized_object@misc$max_pca_dim),
+        seq(harmonized_object@misc$max_pca_cite_dim)
+      ),
     modality.weight.name = c("SCT.weight", "CITE.weight")
-  ) %>%
+  ) |>
   # Make UMAP reduction on wnn graph
   RunUMAP(
-    object = .,
     nn.name = "weighted.nn",
     reduction.name = "umap_wnn",
     reduction.key = "wnnUMAP_"
@@ -164,7 +167,7 @@ wnn_clust_obj <- wnn_obj %>%
     input <- graph_from_adjacency_matrix(adjmatrix = obj, weighted = TRUE)
     clustering.results <- future_lapply(
       X = seq(0.2, 1.2, 0.2),
-      FUN = function (r) {
+      FUN = function(r) {
         ids <- leiden(
           object = input,
           resolution_parameter = r,
@@ -174,21 +177,21 @@ wnn_clust_obj <- wnn_obj %>%
         names(x = ids) <- colnames(x = obj)
         ids <- GroupSmallClusters(ids = ids, SNN = obj, threshold = 20, verbose = TRUE)
         results <- list(factor(x = ids, levels = str_sort(unique(ids), numeric = TRUE)))
-        names(x = results) <- paste0('res.', r)
+        names(x = results) <- paste0("res.", r)
         return(results)
       }
     )
     clustering.results <- as.data.frame(x = clustering.results)
-    seurat_obj@meta.data[,paste0("wsnn.res.",seq(0.2,1.2,0.2))] <- clustering.results
+    seurat_obj@meta.data[, paste0("wsnn.res.", seq(0.2, 1.2, 0.2))] <- clustering.results
     seurat_obj
   })
 ```
 
 ```{r save data}
 # Save data for next step
-saveRDS(object = wnn_clust_obj, file = "../demo_data/wnn_clust_obj.RDS")
+saveRDS(object = wnn_clust_obj, file = here("demo_data", "wnn_clust_obj.RDS"))
 ```
 
 ```{r}
-devtools::session_info()
+session_info()
 ```

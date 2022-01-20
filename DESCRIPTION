@@ -1,15 +1,19 @@
 Package: sle_activity_scrnaseq
-Title: What the Package Does (One Line, Title Case)
+Title: sle_activity_scrnaseq
 Version: 0.0.0.9000
 Authors@R: 
-    person("First", "Last", , "first.last@example.com", role = c("aut", "cre"),
-           comment = c(ORCID = "YOUR-ORCID-ID"))
-Description: What the package does (one paragraph).
-License: `use_mit_license()`, `use_gpl3_license()` or friends to pick a
-    license
+    c(
+      person("Kevin", "Thomas", , "kevin-thomas@omrf.org", role = c("aut", "cre"),
+           comment = c(ORCID = "YOUR-ORCID-ID")),
+      person("Miles", "Smith", , "miles-smith@omrf.org", role = c("aut", "cre"),
+           comment = c(ORCID = "0000-0003-0651-809X")),
+    )
+Description: Installs libraries and functions necessary to reproduce the analysis for "Ancestry-based differences in the immune system are associated with lupus severity" (2022), Slight-Webb, S, Thomas, K., et al...
+License: Apache License (>= 2)
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.0.0
+Depends: R (>=4.1)
 Imports: 
     BiocNeighbors (>= 1.12.0),
     BiocParallel,
@@ -17,18 +21,24 @@ Imports:
     cowplot,
     data.table,
     deMULTIplex,
+    devtools,
     dsb,
     forcats,
     furrr,
     future,
+    future.apply,
     ggplot2,
+    ggrepel,
     glmGamPoi,
     harmony,
+    here,
     igraph,
     janitor,
     knitr,
     markdown,
+    pheatmap,
     parallel,
+    presto,
     purrr,
     readr,
     remotes,
@@ -36,14 +46,23 @@ Imports:
     rmarkdown,
     rsvd,
     Seurat (>= 4.0.3),
+    SeuratBubblePlot,
+    SeuratObject,
     SoupX (>= 1.5.2),
     sp,
     stringr,
     tibble,
     tidyr,
-    tinytex
+    tinytex,
+    RColorBrewer,
+    grDevices,
+    ggpubr,
+    pals,
+    viridisLite
 Remotes: 
     bioc::BiocParallel,
     bioc::BiocNeighbors,
     bioc::glmGamPoi,
-    github::chris-mcginnis-ucsf/MULTI-seq
+    github::chris-mcginnis-ucsf/MULTI-seq,
+    github::immunogenomics/presto
+    github::milescsmith/SeuratBubblePlot

@@ -22,12 +22,12 @@ output:
 ```{r setup, include=FALSE}
 # Set options
 options(width = 1200)
+here::i_am("analysis/02_pp_object_construction.Rmd")
 knitr::opts_chunk$set(echo = TRUE, fig.width = 12, fig.height = 12)
-# reticulate::use_condaenv(condaenv = "reticulate", required = TRUE, conda = "~/conda/bin/conda")
 options(future.globals.maxSize = +Inf)
 
 # Attach libraries
-# source("../R/packages.R")
+library(here)
 library(BiocParallel)
 library(future)
 library(BiocNeighbors)
@@ -42,37 +42,42 @@ library(sp)
 library(tidyr)
 library(furrr)
 library(dsb)
-library(dplyr)
+library(dplyr) 
 library(rlang)
 library(deMULTIplex)
 library(data.table)
 library(cowplot)
+library(devtools)
+library(magrittr)
+library(cluster)
+library(fitdistrplus)
+library(future.apply)
+library(Matrix)
 
 # Parallelization
-BPPARAM = SnowParam(workers=ceiling(0.5*parallel::detectCores()), type = "SOCK")
-BNPARAM = HnswParam()
+BPPARAM <- SnowParam(workers = ceiling(0.5 * parallel::detectCores()), type = "SOCK")
+BNPARAM <- HnswParam()
 register(BPPARAM)
 plan(strategy = multisession, workers = parallel::detectCores())
 
 # Define custom functions
-source("../R/functions.R")
+source(here("R", "functions.R"))
 
 # Set plot theme for any plots
-theme_set(cowplot::theme_cowplot())
 
 # Define variables
-file_directory <- "../demo_data/droplets/"
+file_directory <- here("demo_data", "droplets")
 dataDirs <- list.files(
   path = file_directory,
   pattern = "raw_feature_bc_matrix|filtered_feature_bc_matrix|analysis",
   full.names = TRUE,
   recursive = TRUE,
   include.dirs = TRUE
-) |> 
+) |>
   str_remove("/raw_feature_bc_matrix|/filtered_feature_bc_matrix|/analysis") %>%
   unique()
-primary_species_prefix = "GRCh38_"
-secondary_species_prefix = "mm10___"
+primary_species_prefix <- "GRCh38_"
+secondary_species_prefix <- "mm10___"
 multisample <- "hash"
 ```
 
@@ -81,15 +86,15 @@ multisample <- "hash"
 ```{r load data}
 # Load data from last step and samplesheet for object metadata
 # Here, gene expression matrices are simply taken as the adjusted counts output of the SoupX analysis
-gem_matrices <- readRDS(file = "../demo_data/adjustCountList.RDS")
-samplesheet <- read_csv(file = "../demo_data/da_samplesheet_final.csv") |> 
-    clean_names()
+gem_matrices <- readRDS(file = here("demo_data", "adjustCountList.RDS"))
+samplesheet <- read_csv(file = here("demo_data", "da_samplesheet_final.csv")) |>
+  clean_names()
 ```
 
 ```{r read in CITE data}
 # We still need to find cite counts, if they exist, but only the ones we've carried through to this point
 filtered_matrices <- map(
-  .x = paste0(dataDirs, "/filtered_feature_bc_matrix"),
+  .x = here(dataDirs, "filtered_feature_bc_matrix"),
   .f = Read10X
 )
 
@@ -98,13 +103,15 @@ adt_matrices <- if_else(
   condition = map2_lgl(
     .x = filtered_matrices,
     .y = basename(dataDirs),
-    .f = function(x,y){"Antibody Capture" %in% names(x) && y %in% names(gem_matrices)}
+    .f = function(x, y) {
+      "Antibody Capture" %in% names(x) && y %in% names(gem_matrices)
+    }
   ),
   true = filtered_matrices %>% map("Antibody Capture"),
   false = NULL
 ) |>
-  discard(.p = is.null) |> 
-  setNames(names(gem_matrices))
+  discard(.p = is.null) |>
+  set_names(names(gem_matrices))
 
 # Free memory
 rm(filtered_matrices)
@@ -125,30 +132,29 @@ dsb_adt_matrices <- if (!is.null(adt_matrices)) {
       message(str_glue("Evaluating CITE counts for sample {names(adt_matrices)[[i]]} of {length(adt_matrices)}."))
       if (mean(rowSums(adt_matrices[[i]])) > 50 && mean(colSums(adt_matrices[[i]])) > 10) {
         message(str_glue("Keeping sample {names(adt_matrices)[[i]]}."))
-        
-        cells_use <- 
-            gem_classification |> 
-            filter(run == names(x = adt_matrices)[[i]]) |>
-            filter(call == str_remove_all(string = secondary_species_prefix, pattern = "_")) |> 
-            pull(cells)
-        
+
+        cells_use <-
+          gem_classification |>
+          filter(run == names(x = adt_matrices)[[i]]) |>
+          filter(call == str_remove_all(string = secondary_species_prefix, pattern = "_")) |>
+          pull(cells)
+
         adt <- DSBNormalizeProtein(
           cell_protein_matrix = adt_matrices[[i]],
-          
           empty_drop_matrix =
-            adt_matrices[[i]][ ,cells_use], 
+            adt_matrices[[i]][, cells_use],
           use.isotype.control = FALSE,
           isotype.control.name.vec = NULL
         )
         adt
-      }else{
+      } else {
         message(str_glue("Not normalizing sample {names(adt_matrices)[[i]]}. CITE data insufficient."))
         adt <- adt_matrices[[i]]
         adt
       }
     }
-  ) |> 
-    setNames(names(adt_matrices)) |> 
+  ) |>
+    setNames(names(adt_matrices)) |>
     discard(.p = is.null)
 } else {
   NULL
@@ -167,17 +173,21 @@ gems <- map(
       gem_matrix = gem_matrices[names(dsb_adt_matrices)][[i]],
       adt_matrix = adt_matrices[names(dsb_adt_matrices)][[i]],
       norm_adt_matrix = dsb_adt_matrices[[i]],
-      hashtags = if (multisample == "hash") {levels(factor(samplesheet$hashtag))} else {FALSE}
+      hashtags = if (multisample == "hash") {
+        levels(factor(samplesheet$hashtag))
+      } else {
+        FALSE
+      }
     )
   }
-) |> 
-  setNames(names(gem_matrices[names(dsb_adt_matrices)])) |> 
+) |>
+  set_names(names(gem_matrices[names(dsb_adt_matrices)])) |>
   discard(.p = is.null)
 ```
 
 ```{r add metadata to seurat objects}
 # Add in the metadata
-gems_meta = future_map(
+gems_meta <- future_map(
   .x = seq_along(gems),
   .f = function(i) {
     x <- gems[[i]]
@@ -189,7 +199,7 @@ gems_meta = future_map(
     )
   }
 ) |>
-  setNames(names(gems)) |>
+  set_names(names(gems)) |>
   discard(.p = is.null)
 
 # Free memory
@@ -199,7 +209,7 @@ gc()
 
 ```{r merge seurat objects}
 # Merge data together
-pre_qc <- if (length(gems_meta)>1) {
+pre_qc <- if (length(gems_meta) > 1) {
   merge(
     gems_meta[[1]],
     map(
@@ -218,10 +228,10 @@ gc()
 
 ```{r save data}
 # Save data for next step
-saveRDS(object = pre_qc, file = "../demo_data/pre_qc.RDS")
-saveRDS(object = gem_classification, file = "../demo_data/gem_classification.RDS")
+saveRDS(object = pre_qc, file = here("demo_data", "pre_qc.RDS"))
+saveRDS(object = gem_classification, file = here("demo_data", "gem_classification.RDS"))
 ```
 
 ```{r}
-devtools::session_info()
+session_info()
 ```
