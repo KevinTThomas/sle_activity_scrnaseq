@@ -13,7 +13,8 @@ License: Apache License (>= 2)
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.0.0
-Depends: R (>=4.1.0)
+Depends: 
+    R (>= 4.1.0)
 Imports: 
     BiocNeighbors (>= 1.12.0),
     BiocParallel,
