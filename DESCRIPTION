@@ -65,5 +65,5 @@ Remotes:
     bioc::BiocNeighbors,
     bioc::glmGamPoi,
     github::chris-mcginnis-ucsf/MULTI-seq,
-    github::immunogenomics/presto
+    github::immunogenomics/presto,
     github::milescsmith/SeuratBubblePlot
