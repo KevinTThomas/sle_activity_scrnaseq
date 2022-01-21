@@ -834,8 +834,8 @@ HTODemux2 <- function(object, assay = "HTO", positive.quantile.range = seq(0.8, 
 #' @importFrom deMULTIplex classifyCells findThresh findQ rescueCells findReclassCells
 #' @importFrom ggplot2 ggplot aes geom_line theme labs geom_vline scale_color_manual coord_fixed xlim ylim geom_hline geom_errorbar
 #' @importFrom data.table foverlaps data.table setkey
-#' @importFrom magrittr use_serise
-#' @importFrom grDevices pdf dev
+#' @importFrom magrittr use_series
+#' @importFrom grDevices pdf
 #' @importFrom cowplot plot_grid
 #'
 #' @return

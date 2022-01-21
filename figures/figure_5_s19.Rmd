@@ -45,6 +45,7 @@ library(viridisLite)
 library(magrittr)
 library(purrr)
 library(tidyr)
+library(devtools)
 
 # Set plot theme
 theme_set(theme_cowplot())
@@ -478,5 +479,5 @@ ggplot(
 ```
 
 ```{r}
-devtools::session_info()
+session_info()
 ```
