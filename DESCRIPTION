@@ -17,7 +17,6 @@ Depends:
 Imports: 
     BiocNeighbors (>= 1.12.0),
     BiocParallel,
-    conflicted,
     cowplot,
     data.table,
     deMULTIplex,
@@ -60,8 +59,7 @@ Imports:
     pals,
     viridisLite,
     scales,
-    viridis,
-    okabe
+    viridis
 Remotes: 
     bioc::BiocParallel,
     bioc::BiocNeighbors,
