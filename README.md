@@ -30,12 +30,14 @@ necessary packages can be installed with:
 
 Additionally, to improve reproducibility and ease installation, a
 [Docker](https://docs.docker.com/get-docker/) container is provided. It
-can be retrieved using:s
+can be retrieved using:
 
 `docker pull milescsmith/sle_activity_scrnaseq:4.1.2`
 
-The dockerfile for building the above image can be found within this
-repository.
+The docker container is based on the [rocker/rstudio:4.1.2](https://hub.docker.com/r/rocker/rstudio)
+container and thus runs a version of RStudio appropriate for running the
+analysis notebooks. The dockerfile for building the above image can be
+found within this repository.
 
 Because of the size of the data, it is recommended that the analysis be
 run on a Linux workstation with multiple cores and at least 64 GB of RAM
@@ -68,10 +70,19 @@ or html files) or on the command line using:
 
 `R -e "knitr::knit('analysis/01_pp_soupX.Rmd')"`
 
-to compile the first document, for example.
-
 A small subset of the data is provided as a toy example in the
 `demo_data` folder, which the code is currently written to analyze.
+The notebooks are currently written to run on this toy dataset.  To run
+them on the data from the study, the `analysis/01_pp_soupX.Rmd` file will need
+to have all instances of `demo_data` changed to the name of the directory
+in which the data is located.  Within that data directory, create a subdirectory
+named "droplets" and place the final raw and filtered matrix folder for each run 
+within their own appropriately named subdirectory. In the data directory, place a 
+sample sheet describing the samples; the `da_samplesheet_final.csv` file can serve
+as a template, but it must have the columns
+
+| Subject_id | ancestry | classification | age | run | Hashtag |
+
 
 # Data
 
