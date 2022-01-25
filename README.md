@@ -1,9 +1,3 @@
----
-editor_options: 
-  markdown: 
-    wrap: 72
----
-
 This repository contains the code necessary to reproduce the analysis
 and figures for
 
@@ -21,9 +15,10 @@ Download the code using
 The analysis requires [R](https://www.r-project.org/) (>=4.1),
 [Rstudio](https://www.rstudio.com/) (>= 2021.09.0),
 [Python](https://www.python.org/) (>=3.8). The R packages that are
-required for this analysis can be found in the DESCRIPTION file; these
+required for this analysis can be found in the DESCRIPTION file; this
 project, however, has itself been organized as an R package and -
-provided that you have `BiocManager` and `remotes` installed - the
+provided that you have [`BiocManager`](https://cran.r-project.org/web/packages/BiocManager/index.html)
+and [`remotes`](https://cran.r-project.org/web/packages/remotes/index.html) installed - the
 necessary packages can be installed with:
 
 `BiocManager::install('KevinTThomas/sle_activity_scrnaseq')`
@@ -35,7 +30,7 @@ can be retrieved using:
 `docker pull milescsmith/sle_activity_scrnaseq:4.1.2`
 
 The docker container is based on the [rocker/rstudio:4.1.2](https://hub.docker.com/r/rocker/rstudio)
-container and thus runs a version of RStudio appropriate for running the
+container and thus runs a version of RStudio appropriate for compiling the
 analysis notebooks. The dockerfile for building the above image can be
 found within this repository.
 
@@ -82,6 +77,7 @@ sample sheet describing the samples; the `da_samplesheet_final.csv` file can ser
 as a template, but it must have the columns
 
 | Subject_id | ancestry | classification | age | run | Hashtag |
+| ---------- | -------- | -------------- | --- | --- | ------- |
 
 
 # Data
