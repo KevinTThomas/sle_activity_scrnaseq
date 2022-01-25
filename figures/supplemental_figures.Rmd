@@ -21,35 +21,51 @@ output:
 
 ```{r setup, include=FALSE}
 # Set options
+here::i_am("figures/supplemental_figures.Rmd")
 options(width = 1200)
 knitr::opts_chunk$set(echo = TRUE, fig.width = 12, fig.height = 12)
 
 # Attach libraries
-source("../R/packages.R")
+library(here)
+library(ggplot2)
+library(cowplot)
+library(scales)
+library(dplyr)
+library(purrr)
+library(magrittr)
+library(rlang)
+library(stringr)
+library(viridis)
+library(pals)
+library(SeuratBubblePlot)
+library(pheatmap)
+library(devtools)
+library(Seurat)
+library(tibble)
 
 # Define custom functions
-source("../R/functions.R")
+source(file = here("R", "functions.R"))
 
 # Set plot theme
-theme_set(cowplot::theme_cowplot())
+theme_set(theme_cowplot())
 
-library(scales)
-log10p <- scales::trans_new(
+log10p <- trans_new(
   name = "log10p",
   transform = function(x) log10(x+1),
   inverse = function(x) 10^x-1
 )
+
 gg_color_hue <- function(n) {
   hues = seq(15, 375, length = n + 1)
   hcl(h = hues, l = 65, c = 100)[1:n]
 }
 
 # Import pre_qc, gem_classification, and final seurat object
-pre_qc <- readRDS(file = "../data/pre_qc.RDS")
-gem_classification <- readRDS(file = "../data/gem_classification.RDS")
-sc <- readRDS(file = "../data/final_seurat.RDS")
-primary_species_prefix = "GRCh38_"
-secondary_species_prefix = "mm10___"
+pre_qc <- readRDS(file = here("data","pre_qc.RDS"))
+gem_classification <- readRDS(file = here("data","gem_classification.RDS"))
+sc <- readRDS(file = here("data","final_seurat.RDS"))
+primary_species_prefix <- "GRCh38_"
+secondary_species_prefix <- "mm10___"
 ```
 
 ## S10A
@@ -97,7 +113,7 @@ mouse_cutoffs <- list(
     x = c(0, 0, 100, 100, 20),
     y = c(300, 15000, 15000, 3000, 300)
   )
-) %>%
+) |> 
   bind_rows(.id = "run")
 
 # Set human cutoffs
@@ -142,124 +158,222 @@ human_cutoffs <- list(
     x = c(30, 10000, 10000, 30),
     y = c(150, 150, 0, 0)
   )
-) %>%
+) |> 
   bind_rows(.id = "run")
 ```
 
 ### Plotting
 ```{r S10A, fig.height=7, fig.width=12}
 plots <- map(
-  .x = unique(gem_classification$run),
+  .x = unique(gem_classification[["run"]]),
   .f = function(r) {
-    df <- gem_classification %>%
+    df <- gem_classification |> 
       filter(run == r)
-    mc <- mouse_cutoffs %>%
+    mc <- mouse_cutoffs |> 
       filter(run == r)
-    hc <- human_cutoffs %>%
+    hc <- human_cutoffs |> 
       filter(run == r)
     cutoffs <- bind_rows(
-      `names<-`(
+      set_names(
         x = list(mc, hc),
-        value = c(str_remove_all(secondary_species_prefix, "_"), str_remove_all(primary_species_prefix, "_"))
+        nm = c(
+          str_remove_all(secondary_species_prefix, "_"),
+          str_remove_all(primary_species_prefix, "_")
+          )
       ),
       .id = "Species"
     )
     
     gg <- ggplot(
       data = df,
-      mapping = aes(
-        x = eval(parse(text=paste0("`", str_remove_all(primary_species_prefix, "_"), "_counts`"))),
-        y = eval(parse(text=paste0("`", str_remove_all(secondary_species_prefix, "_"), "_counts`"))),
-      )
-    ) +
-    geom_point(
-      size = 0.2,
-      shape = 16,
-    ) +
-    stat_density_2d(aes(fill = ..level..), geom = "polygon", contour_var = "ndensity") +
-    scale_fill_viridis(option = "magma") +
-    geom_polygon(aes(x, y, group = Species, color = Species), data = cutoffs, fill = NA) +
-    scale_color_manual(
-      values = `names<-`(
-        x = c("#00a1df", "#58a532"),
-        value = c(str_remove_all(secondary_species_prefix, "_"), str_remove_all(primary_species_prefix, "_"))
-      ),
-      guide = guide_legend(title = "Species call", override.aes = list(alpha = 0))
-    ) +
-    scale_x_continuous(
-      trans = log10p,
-      breaks = map_int(0:4, ~int(10^.x)),
-      labels = scales::trans_format("log10", scales::math_format(10^.x)),
-      limits = c(
-        min(
-          c(
-            eval(parse(text=paste0("gem_classification$", str_remove_all(primary_species_prefix, "_"), "_counts"))),
-            human_cutoffs$x
+      mapping = 
+        aes(
+          x = eval(
+            parse(
+              text =
+                paste0(
+                  "`",
+                  str_remove_all(
+                    string = primary_species_prefix,
+                    pattern = "_"
+                    ),
+                  "_counts`"
+                  )
+              )
+            ),
+          y = eval(
+            parse(
+              text =
+                paste0(
+                  "`",
+                  str_remove_all(
+                    string = secondary_species_prefix, 
+                    pattern = "_"
+                    ),
+                  "_counts`"
+                  )
+              )
+            )
           )
-        ),
-        max(
-          c(
-            eval(parse(text=paste0("gem_classification$", str_remove_all(primary_species_prefix, "_"), "_counts"))),
-            human_cutoffs$x
+      ) +
+      geom_point(
+        size = 0.2,
+        shape = 16,
+        ) +
+      stat_density_2d(
+        aes(fill = ..level..),
+        geom = "polygon",
+        contour_var = "ndensity"
+        ) +
+      scale_fill_viridis(option = "magma") +
+      geom_polygon(
+        aes(
+          x,
+          y, 
+          group = Species, 
+          color = Species
+          ),
+        data = cutoffs, 
+        fill = NA
+        ) +
+      scale_color_manual(
+        values = set_names(
+          x = c("#00a1df", "#58a532"),
+          nm = c(
+            str_remove_all(secondary_species_prefix, "_"),
+            str_remove_all(primary_species_prefix, "_")
+            )
+          ),
+        guide =
+          guide_legend(
+            title = "Species call",
+            override.aes = list(alpha = 0)
+            )
+        ) +
+      scale_x_continuous(
+        trans = log10p,
+        breaks = map_int(0:4, ~int(10^.x)),
+        labels = trans_format("log10", math_format(10^.x)),
+        limits = c(
+          min(
+            c(
+              eval(
+                parse(
+                  text =
+                    paste0(
+                      "gem_classification$",
+                      str_remove_all(
+                        string = primary_species_prefix,
+                        pattern = "_"
+                        ),
+                      "_counts"
+                      )
+                  )
+                ),
+              human_cutoffs$x
+              )
+            ),
+          max(
+            c(
+              eval(
+                parse(
+                  text =
+                    paste0(
+                      "gem_classification$",
+                      str_remove_all(
+                        string = primary_species_prefix,
+                        pattern = "_"
+                        ),
+                      "_counts"
+                      )
+                  )
+                ),
+              human_cutoffs$x
+              )
+            )
           )
-        )
-      )
-    ) +
-    scale_y_continuous(
-      trans = log10p,
-      breaks = map_int(0:4, ~int(10^.x)),
-      labels = scales::trans_format("log10", scales::math_format(10^.x)),
-      limits = c(
-        min(
-          c(
-            eval(parse(text=paste0("gem_classification$", str_remove_all(secondary_species_prefix, "_"), "_counts"))),
-            mouse_cutoffs$y
+        ) +
+      scale_y_continuous(
+        trans = log10p,
+        breaks = map_int(0:4, ~int(10^.x)),
+        labels = trans_format("log10", math_format(10^.x)),
+        limits = c(
+          min(
+            c(
+              eval(
+                parse(
+                  text = 
+                    paste0(
+                      "gem_classification$", 
+                      str_remove_all(
+                        string = secondary_species_prefix, 
+                        pattern = "_"
+                        ),
+                      "_counts"
+                      )
+                  )
+                ),
+              mouse_cutoffs$y
+              )
+            ),
+          max(
+            c(
+              eval(
+                parse(
+                  text = 
+                    paste0(
+                      "gem_classification$",
+                      str_remove_all(secondary_species_prefix, "_"),
+                      "_counts"
+                      )
+                  )
+                ),
+              mouse_cutoffs$y
+              )
+            )
           )
-        ),
-        max(
-          c(
-            eval(parse(text=paste0("gem_classification$", str_remove_all(secondary_species_prefix, "_"), "_counts"))),
-            mouse_cutoffs$y
-          )
-        )
-      )
-    ) +
-    facet_wrap(~run) +
-    labs(
-      x = paste0(str_remove_all(primary_species_prefix, "_"), "_counts"),
-      y = paste0(str_remove_all(secondary_species_prefix, "_"), "_counts"),
-      fill = "Scaled density"
-    ) +
-    theme(
-      legend.position = "hidden",
-      strip.background = element_blank(),
-      strip.text = element_text(face = "bold"),
-    ) +
-    coord_fixed()
+        ) +
+      facet_wrap(~run) +
+      labs(
+        x = paste0(str_remove_all(primary_species_prefix, "_"), "_counts"),
+        y = paste0(str_remove_all(secondary_species_prefix, "_"), "_counts"),
+        fill = "Scaled density"
+        ) +
+      theme(
+        legend.position = "hidden",
+        strip.background = element_blank(),
+        strip.text = element_text(face = "bold"),
+        ) +
+      coord_fixed()
     
-    return (gg)
-  }
-)
+      gg
+    }
+  )
 
-legend <- get_legend(plots[[1]] + theme(legend.position = c(0.5,0.5), legend.direction = "horizontal", legend.justification = "center") + guides(fill = guide_colorbar(barwidth = 20)))
+legend <- get_legend(
+  plots[[1]] + 
+    theme(
+      legend.position = c(0.5,0.5),
+      legend.direction = "horizontal",
+      legend.justification = "center"
+      ) +
+    guides(
+      fill =
+        guide_colorbar(
+          barwidth = 20
+          )
+      )
+  )
 
 plot_grid(
-  plots[[1]],
-  plots[[2]],
-  plots[[3]],
-  plots[[4]],
-  plots[[5]],
-  plots[[6]],
-  plots[[7]],
-  plots[[8]],
-  plots[[9]],
-  plots[[10]],
-  NULL,
-  NULL,
-  legend,
+  plotlist=
+    c(plots,
+    NULL,
+    NULL),
+    legend,
   ncol = 5,
   rel_heights = c(1,1,0.5)
-)
+  )
 ```
 
 ## S10B
@@ -272,7 +386,10 @@ heatmaps1 <- map(
     object <- subset(
         x = pre_qc,
         cells = gem_classification[
-          which(x = gem_classification$call == str_remove_all(primary_species_prefix, "_") & gem_classification$run == i),
+          which(
+            x = gem_classification$call == str_remove_all(primary_species_prefix, "_") &
+              gem_classification$run == i
+            ),
         ] %>%
           (function(x) paste0(x$run, "_", x$cells))
     ) %>%
@@ -331,7 +448,7 @@ heatmaps1 <- map(
         plot.title = element_text(size = 12),
         legend.position = "hidden"
       )
-    return(gg)
+    gg
   }
 )
 
@@ -343,7 +460,11 @@ heatmaps2 <- map(
     object <- subset(
         x = pre_qc,
         cells = gem_classification[
-          which(x = gem_classification$call == str_remove_all(primary_species_prefix, "_") & gem_classification$run == i),
+          which(
+            x = 
+              gem_classification$call == str_remove_all(primary_species_prefix, "_") & 
+              gem_classification$run == i
+            ),
         ] %>%
           (function(x) paste0(x$run, "_", x$cells))
     ) %>%
@@ -386,7 +507,7 @@ heatmaps2 <- map(
 )
 
 # Make a common legend
-legend <- get_legend(heatmaps1[[10]] + theme(legend.position = c(0.5,0.75), legend.direction = "horizontal") + guides(fill = guide_colorbar(barwidth = 20)))
+legend <- get_legend(heatmaps1[[1]] + theme(legend.position = c(0.5,0.75), legend.direction = "horizontal") + guides(fill = guide_colorbar(barwidth = 20)))
 
 # Plot grid
 plot_grid(
@@ -411,7 +532,8 @@ plot_grid(
   heatmaps1[[10]],
   heatmaps2[[10]],
   legend,
-  ncol = 2)
+  ncol = 2
+  )
 ```
 
 ## S10C
@@ -451,7 +573,7 @@ map(
       object = obj,
       vars = c("nFeature_RNA", "percent_mt", "percent_hemo", "nCount_RNA")
     ) %>%
-      dplyr::rename(nGenes = nFeature_RNA) %>%
+      rename(nGenes = nFeature_RNA) %>%
       # as.data.frame() %>%
       ggplot(data = ., aes(x = nGenes, y = percent_mt)) +
       geom_point(size = 0.2, shape = 16, show.legend = FALSE) +
@@ -462,7 +584,7 @@ map(
       scale_x_continuous(
         trans = log10p,
         breaks = map_int(0:5, ~int(10^.x)),
-        labels = scales::trans_format("log10", scales::math_format(10^.x)),
+        labels = trans_format("log10", math_format(10^.x)),
         limits = c(min(pre_qc$nFeature_RNA), max(pre_qc$nFeature_RNA))
       ) +
       scale_y_continuous(limits = c(0,57), breaks = c(10,20,30,40,50)) +
@@ -470,7 +592,7 @@ map(
       theme(
         plot.title = element_text(hjust = 0.5, size = 12)
       )
-    return(gg)
+    gg
   }
 ) %>% plot_grid(plotlist = ., ncol = 2)
 ```
@@ -503,7 +625,7 @@ FetchData(
   ggplot(aes(x = value1, y = value2, col = run)) +
   geom_point(size = 0.4) +
   facet_wrap(~reduction, scales = "free_x") +
-  cowplot::theme_cowplot() +
+  theme_cowplot() +
   theme(strip.background = element_blank(), strip.text = element_text(face = "bold")) +
   labs(x = NULL, y = NULL, col = NULL)
 ```
@@ -522,7 +644,7 @@ FetchData(
   ggplot(aes(x = wnnUMAP_1, y = wnnUMAP_2, col = clusters_annotated)) +
   geom_point(size = 0.4) +
   scale_color_manual(
-    values = `names<-`(pals::cols25(n = length(levels(sc$clusters_annotated))), levels(sc$clusters_annotated))
+    values = set_names(cols25(n = length(levels(sc$clusters_annotated))), levels(sc$clusters_annotated))
   ) +
   facet_wrap(~group + subject_id, nrow = 5) +
   labs(x = NULL, y = NULL, col = NULL) +
@@ -543,7 +665,7 @@ DimPlot(
   reduction = "umap_wnn",
   dims = c(1,2),
   group.by = "coarse_cell_type",
-  cols = `names<-`(pals::okabe(n = length(levels(sc$coarse_cell_type))), unique(sc$coarse_cell_type)),
+  cols = set_names(okabe(n = length(levels(sc$coarse_cell_type))), unique(sc$coarse_cell_type)),
   label = TRUE,
   label.size = 4
 ) +
@@ -617,12 +739,11 @@ mat <- FetchData(
         (function (x) {paste0(x$Var2, " ", x$Var1)})
     )
   ) %>%
-  summarize_if(is.numeric, median) %>%
-  as.data.frame() %>%
+  summarise(across(where(is.numeric), median)) %>%
   column_to_rownames("ident") %>%
   t()
 
-pheatmap::pheatmap(
+pheatmap(
   mat = mat,
   breaks = seq.int(-3,3,length.out = 100),
   scale = "row",
@@ -636,5 +757,5 @@ pheatmap::pheatmap(
 
 
 ```{r}
-devtools::session_info()
+session_info()
 ```

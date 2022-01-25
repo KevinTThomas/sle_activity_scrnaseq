@@ -4,9 +4,9 @@ author: "Kevin Thomas"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output:
   rmarkdown::github_document:
+    html_preview: false
     toc: true
     toc_depth: 3
-    toc_float: true
 ---
 
 ```{css, echo=FALSE}
@@ -21,29 +21,49 @@ output:
 
 ```{r setup, include=FALSE}
 # Set options
+here::i_am("figures/figure_4_s18.Rmd")
 options(width = 1200)
 knitr::opts_chunk$set(echo = TRUE, fig.width = 12, fig.height = 12)
 # Attach libraries
+library(here)
 library(Seurat)
-library(tidyverse)
 library(presto)
 library(pheatmap)
 library(SeuratBubblePlot)
+library(pals)
+library(cowplot)
+library(ggplot2)
+library(rlang)
+library(tibble)
+library(dplyr)
+library(magrittr)
+library(RColorBrewer)
+library(grDevices)
+library(ggpubr)
+library(devtools)
+library(purrr)
+
 # Set plot theme
-theme_set(cowplot::theme_cowplot())
+theme_set(theme_cowplot())
 # Import final seurat object
-sc <- readRDS(file = "../data/final_seurat.RDS")
+sc <- readRDS(file = here("data", "final_seurat.RDS"))
 ```
 
 ## 4A
 ```{r 4A, fig.height=6}
 DimPlot(
   object = sc,
-  cells = WhichCells(object = sc, expression = `coarse_cell_type` %in% c("B cells", "Plasmablasts") & `wnnUMAP_1` > 4 & `wnnUMAP_2` < 0),
+  cells = WhichCells(
+    object = sc,
+    expression =
+      `coarse_cell_type` %in% c("B cells", "Plasmablasts") &
+      `wnnUMAP_1` > 4 &
+      `wnnUMAP_2` < 0
+    ),
   reduction = "umap_wnn",
   dims = c(1,2),
   group.by = "clusters_annotated",
-  cols = `names<-`(pals::cols25(n = length(levels(sc$clusters_annotated))), levels(sc$clusters_annotated)),
+  cols = set_names(cols25(n = length(levels(sc$clusters_annotated))), levels(sc$clusters_annotated)),
   label = TRUE,
   label.size = 4,
   repel = FALSE
@@ -64,32 +84,34 @@ b_markers_cite <-
     X = .,
     seurat_assay = "CITE",
     group_by = "clusters_annotated"
-  ) %>%
-  as_tibble() %>%
-  dplyr::select(feature,
-                cluster = group,
-                p_val = pval,
-                p_val_adj = padj,
-                avg_logFC = logFC,
-                pct.1 = pct_in,
-                pct.2 = pct_out,
-                auc
-  ) %>%
+  ) |>
+  as_tibble() |>
+  dplyr::select(
+    feature,
+    cluster = group,
+    p_val = pval,
+    p_val_adj = padj,
+    avg_logFC = logFC,
+    pct.1 = pct_in,
+    pct.2 = pct_out,
+    auc
+  ) |>
   ## Significance filter
-  filter(p_val_adj <= 0.1) %>%
-  mutate(cluster = factor(cluster, levels = unique(cluster)[c(4, 3, 1, 2, 6, 5)])) %>%
-  group_by(cluster) %>%
+  filter(p_val_adj <= 0.1) |>
+  mutate(cluster = factor(cluster, levels = unique(cluster)[c(4, 3, 1, 2, 6, 5)])) |>
+  group_by(cluster) |>
   ## Positive markers only, remove the isotype control
-  filter(avg_logFC > 0, feature != "isotype-control") %>%
+  filter(avg_logFC > 0, feature != "isotype-control") |>
   ## Rank markers in each cluster by average logFC
   arrange(-avg_logFC, by.group = TRUE) %>%
   ## If two clusters share a marker, the cluster with a higher average logFC is prioritized
   filter(
-    avg_logFC == map_dbl(split(., .$feature), ~max(.x$avg_logFC))[feature]
-  ) %>%
+    avg_logFC == map_dbl(split(., use_series(., feature)), ~max(.x$avg_logFC))[feature]
+  ) |>
   ## Top 3 features for each cluster
-  slice_head(n = 3) %>%
-  .$feature
+  slice_head(n = 3) |>
+  use_series(feature)
+
 # Bubbleplot
 bubbleplot(
   object = subset(sc, `coarse_cell_type` %in% c("B cells", "Plasmablasts")),
@@ -111,51 +133,54 @@ bubbleplot(
 ```{r 4C, fig.width=4}
 # Generate gene markers for B cells
 b_markers_genes <-
-  subset(sc, `coarse_cell_type` %in% c("B cells", "Plasmablasts")) %>%
+  subset(sc, `coarse_cell_type` %in% c("B cells", "Plasmablasts")) |> 
   wilcoxauc(
-    X = .,
     seurat_assay = "SCT",
     group_by = "clusters_annotated"
-  ) %>%
-  as_tibble() %>%
-  dplyr::select(feature,
-                cluster = group,
-                p_val = pval,
-                p_val_adj = padj,
-                avg_logFC = logFC,
-                pct.1 = pct_in,
-                pct.2 = pct_out,
-                auc
-  ) %>%
-  filter(p_val_adj <= 0.1) %>%
-  mutate(cluster = factor(cluster, levels = unique(cluster)[c(4, 3, 1, 2, 6, 5)])) %>%
-  group_by(cluster) %>% 
-  filter(auc > 0.55) %>%
+  ) |> 
+  as_tibble() |> 
+  dplyr::select(
+    feature,
+    cluster = group,
+    p_val = pval,
+    p_val_adj = padj,
+    avg_logFC = logFC,
+    pct.1 = pct_in,
+    pct.2 = pct_out,
+    auc
+  ) |> 
+  filter(p_val_adj <= 0.1) |> 
+  mutate(cluster = factor(cluster, levels = unique(cluster)[c(4, 3, 1, 2, 6, 5)])) |> 
+  group_by(cluster) |> 
+  filter(auc > 0.55) |> 
   arrange(-auc, by.group = TRUE) %>%
   filter(
-    auc == map_dbl(split(., .$feature), ~max(.x$auc))[feature]
+    auc == map_dbl(split(., use_series(., feature)), ~max(.x$auc))[feature]
   ) %>%
-  slice_head(n = 5) %>%
-  .$feature
+  slice_head(n = 5) |> 
+  use_series(feature)
+
 # Heatmap
 scale <- function(x) {
   (x-min(x))/(max(x)-min(x))
 }
+
 mat <- FetchData(
   object = subset(sc, `coarse_cell_type` %in% c("B cells", "Plasmablasts")),
   vars = c("clusters_annotated", b_markers_genes)
-) %>%
-  as_tibble(rownames = "cell") %>%
-  group_by(clusters_annotated) %>%
-  summarize_if(is.numeric, mean) %>%
-  mutate_at(b_markers_genes, scale) %>%
-  as.data.frame() %>%
+) |> 
+  as_tibble(rownames = "cell") |> 
+  group_by(clusters_annotated) |> 
+  summarize_if(is.numeric, mean) |> 
+  mutate_at(b_markers_genes, scale) |> 
+  as.data.frame() |> 
   column_to_rownames("clusters_annotated")
+
 pheatmap(
   mat = t(mat),
   scale = "none",
   breaks = seq.int(from = 0, to = 1, length.out = 100),
-  color = colorRampPalette(RColorBrewer::brewer.pal(n = 7, name = "Blues"))(100),
+  color = colorRampPalette(brewer.pal(n = 7, name = "Blues"))(100),
   cluster_rows = FALSE,
   cluster_cols = FALSE,
   angle_col = 90,
@@ -166,18 +191,18 @@ pheatmap(
 ## 4D-4I
 ```{r 4D-4I}
 # Collect percent of B cells in each cluster per patient
-vln_data <- sc %>%
-  FetchData(
-    object = .,
+vln_data <- FetchData(
+    object = sc,
     vars = c("clusters_annotated", "subject_id", "ancestry", "classification"),
     cells = WhichCells(sc, expression = `coarse_cell_type` %in% c("B cells", "Plasmablasts"))
-  ) %>%
-  group_by(ancestry, classification, subject_id, clusters_annotated) %>%
-  summarize(total_cells = n()) %>%
+  ) |> 
+  group_by(ancestry, classification, subject_id, clusters_annotated) |> 
+  summarise(total_cells = n()) |> 
   mutate(
     percent_total = 100*total_cells/sum(total_cells),
     group = paste(ancestry, classification)
   )
+
 # Re-order factor levels
 vln_data$group <- factor(
   x = vln_data$group,
@@ -190,20 +215,37 @@ vln_data$group <- factor(
     "AA SLE ACT"
   )
 )
+
 # Violin plots for each cluster
 vln_data %>%
-  ggplot(aes(x = group, y = percent_total)) +
-  geom_violin(aes(fill = clusters_annotated), scale = "width") +
+  ggplot(
+    aes(
+      x = group, 
+      y = percent_total
+      )
+    ) +
+  geom_violin(
+    aes(
+      fill = clusters_annotated
+      ),
+    scale = "width"
+    ) +
   scale_fill_manual(
-    values = `names<-`(
-      x = pals::cols25(n = length(levels(vln_data$clusters_annotated))),
-      values = levels(vln_data$clusters_annotated)
+    values = set_names(
+      x = cols25(n = length(levels(vln_data$clusters_annotated))),
+      nm = levels(vln_data$clusters_annotated)
     )
   ) +
-  geom_boxplot(width = 0.2, outlier.shape = NA) +
-  geom_jitter(width = 0.2, size = 0.4) +
+  geom_boxplot(
+    width = 0.2, 
+    outlier.shape = NA
+    ) +
+  geom_jitter(
+    width = 0.2, 
+    size = 0.4
+    ) +
   ## Show statistics for Wilcoxon comparisons
-  ggpubr::stat_compare_means(
+  stat_compare_means(
     aes(label = ..p.format..),
     method = "wilcox.test",
     method.args = list(
@@ -226,24 +268,34 @@ vln_data %>%
   xlab(NULL) +
   ylab(NULL) +
   facet_wrap(~clusters_annotated, scales = "free", ncol = 3) +
-  cowplot::theme_cowplot() +
+  theme_cowplot() +
   theme(
     strip.background = element_blank(),
     strip.text = element_text(face = "bold"),
     legend.position = "none",
-    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)
+    axis.text.x =
+      element_text(
+        angle = 45,
+        hjust = 1,
+        vjust = 1
+        )
   )
 ```
 
 ## 4L-4N + S18
 ```{r 4D-4I + S18}
 # Gather normalized expression data for heavy chain genes
-ig_data <- sc %>%
-  FetchData(
-    object = .,
-    vars = c("clusters_annotated", "ancestry", "classification", "subject_id", grep(pattern = "^IGH", x = rownames(sc), value = TRUE)),
-    cells = WhichCells(sc, expression = `coarse_cell_type` %in% c("B cells", "Plasmablasts"))
-  ) %>%
+ig_data <- FetchData(
+    object = sc,
+    vars = 
+      c("clusters_annotated", "ancestry", "classification", "subject_id",
+        grep(pattern = "^IGH", x = rownames(sc), value = TRUE)
+        ),
+    cells = WhichCells(
+      sc,
+      expression = `coarse_cell_type` %in% c("B cells", "Plasmablasts")
+      )
+  ) |> 
   select(
     clusters_annotated,
     ancestry,
@@ -259,13 +311,14 @@ ig_data <- sc %>%
     IGHG4,
     IGHE
   )
+
 # Determine the heavy chain gene with the highest expression in each cell
-ig_data$max_ig <- colnames(x = ig_data[,grep(pattern = "^IGH", colnames(x = ig_data))])[max.col(m = ig_data[,grep("^IGH", colnames(ig_data))], ties.method = "first")]
+ig_data$max_ig <- colnames(x = ig_data[,grep(pattern = "^IGH", colnames(x = ig_data))])[max.col(m =  ig_data[,grep("^IGH", colnames(ig_data))], ties.method = "first")]
 # Summarize by disease group and plot results
-ig_data %>%
-  group_by(ancestry, classification, clusters_annotated, max_ig) %>%
+ig_data |> 
+  group_by(ancestry, classification, clusters_annotated, max_ig) |> 
   ## Tally total number of B cells in each study group predominantly expressing each Ig heavy chain
-  tally() %>%
+  tally() |> 
   mutate(
     ## Calculate percent of totals
     percent = 100*n/sum(n),
@@ -298,13 +351,23 @@ ig_data %>%
         "AA SLE ACT"
       )
     )
-  ) %>%
+  ) |> 
   ## Barplot
-  ggplot(aes(x = group, y = percent, fill = ig_class)) +
+  ggplot(
+    aes(
+      x = group,
+      y = percent, 
+      fill = ig_class
+      )
+    ) +
   geom_bar(stat = 'identity') +
-  labs(x = NULL, y = "Percent of B cells", fill = NULL) +
+  labs(
+    x = NULL, 
+    y = "Percent of B cells",
+    fill = NULL
+    ) +
   facet_wrap(~clusters_annotated, scales = "free") +
-  cowplot::theme_cowplot() +
+  theme_cowplot() +
   theme(
     strip.background = element_blank(),
     strip.text = element_text(face = "bold"),
@@ -313,5 +376,5 @@ ig_data %>%
 ```
 
 ```{r}
-devtools::session_info()
+session_info()
 ```

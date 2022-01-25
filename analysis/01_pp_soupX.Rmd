@@ -1,0 +1,157 @@
+---
+title: "Preprocessing 01: Ambient RNA removal"
+author: "Kevin Thomas"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  rmarkdown::github_document:
+    html_preview: false
+    toc: true
+    toc_depth: 3
+---
+
+```{css, echo=FALSE}
+    body .main-container {
+      max-width: 1500px !important;
+      width: 1500px !important;
+    }
+    body {
+      max-width: 1500px !important;
+    }
+```
+
+```{r setup, include=FALSE}
+# Set options
+options(width = 1200)
+here::i_am("analysis/01_pp_soupX.Rmd")
+knitr::opts_chunk$set(echo = TRUE, fig.width = 12, fig.height = 12)
+options(future.globals.maxSize = +Inf)
+
+# Attach libraries
+library(here)
+library(BiocParallel)
+library(future)
+library(dplyr)
+library(stringr)
+library(purrr)
+library(SoupX)
+library(Matrix)
+library(furrr)
+library(devtools)
+library(magrittr)
+library(rlang)
+
+# Parallelization
+BPPARAM <- SnowParam(workers = ceiling(0.5 * parallel::detectCores()), type = "SOCK")
+register(BPPARAM)
+plan(strategy = multisession, workers = parallel::detectCores())
+
+# Define custom functions
+source(here("R", "functions.R"))
+```
+
+## Using SoupX package to remove counts likely associated with ambient RNA in each run
+
+```{r variablies}
+# variable set-up
+file_directory <- here("demo_data", "droplets")
+contam_gene_sets <- list(
+  HG = c(
+    "HBA1",
+    "HBA2",
+    "HBB",
+    "HBD",
+    "HBE1",
+    "HBG1",
+    "HBG2",
+    "HBM",
+    "HBQ1",
+    "HBZ"
+  )
+) |> lapply(function(x) paste0("GRCh38_", x))
+```
+
+```{r read files}
+# Search file_directory (directory containing cellRanger output files) for raw and filtered barcode matrices
+dataDirs <- list.files(
+  path = file_directory,
+  pattern = "raw_feature_bc_matrix|filtered_feature_bc_matrix|analysis",
+  full.names = TRUE,
+  recursive = TRUE,
+  include.dirs = TRUE
+) |>
+  str_remove("/raw_feature_bc_matrix|/filtered_feature_bc_matrix|/analysis") |>
+  unique()
+```
+
+```{r read in data}
+# Read in gene expression barcode data
+sc_list <- furrr::future_imap(
+  .x = dataDirs,
+  .f = function(i, j) {
+    # message(stringr::str_glue("Loading {j} of {length(dataDirs)}"))
+    message(i)
+    sc <- load10X(
+      dataDir = i,
+      channelName = basename(i),
+      includeFeatures = c("Gene Expression")
+    )
+    if (mean(rowSums(sc$toc)) > 10 && mean(colSums(sc$toc)) > 100) {
+      message(str_glue("Keeping sample {basename(i)}"))
+      return(sc)
+    } else {
+      message(str_glue("Discarding sample {basename(i)}; insufficient quality"))
+      sc <- NULL
+      return(sc)
+    }
+  }
+) |>
+  discard(.p = is.null)
+```
+
+```{r calculate contamination}
+# Calculate the contamination using the human hemoglobin genes
+contamCalcList <- future_map(
+  .x = seq_along(sc_list),
+  .f = function(i) {
+    message(str_glue("Estimating non-expressing cells for {i} of {length(sc_list)}: {sc_list[[i]]$channelName}"))
+    if (any(estimateNonExpressingCells(sc_list[[i]], contam_gene_sets))) {
+      message(str_glue("Using clusters without expressing cells."))
+      message(str_glue("Estimating contamination for {i} of {length(sc_list)}: {sc_list[[i]]$channelName}"))
+      calculateContaminationFraction(
+        sc = sc_list[[i]],
+        nonExpressedGeneList = contam_gene_sets,
+        useToEst = estimateNonExpressingCells(sc_list[[i]], contam_gene_sets)
+      )
+    } else {
+      message(str_glue("No clusters found without expressing cells. Using individual cells instead."))
+      message(str_glue("Estimating contamination for {i} of {length(sc_list)}: {sc_list[[i]]$channelName}"))
+      calculateContaminationFraction(
+        sc = sc_list[[i]],
+        nonExpressedGeneList = contam_gene_sets,
+        useToEst = estimateNonExpressingCells(sc_list[[i]], contam_gene_sets, clusters = FALSE)
+      )
+    }
+  }
+) |> set_names(map_chr(sc_list, use_series, "channelName"))
+```
+
+```{r adjust RNA counts to subtract ambient signals}
+# Adjust counts using calculated contamination fractions
+adjustCountList <- map(
+  .x = contamCalcList,
+  .f = adjustCounts,
+  verbose = 2,
+  roundToInt = TRUE
+) |> set_names(
+  nm = map_chr(.x = sc_list, .f = use_series, "channelName")
+)
+```
+
+```{r save data}
+# Save data for next step
+saveRDS(object = adjustCountList, file = here("demo_data", "adjustCountList.RDS"))
+```
+
+```{r}
+session_info()
+```
