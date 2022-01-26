@@ -1,0 +1,237 @@
+---
+title: "Preprocessing 02: Multimodal object construction"
+author: "Kevin Thomas"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  rmarkdown::github_document:
+    html_preview: false
+    toc: true
+    toc_depth: 3
+---
+
+```{css, echo=FALSE}
+    body .main-container {
+      max-width: 1500px !important;
+      width: 1500px !important;
+    }
+    body {
+      max-width: 1500px !important;
+    }
+```
+
+```{r setup, include=FALSE}
+# Set options
+options(width = 1200)
+here::i_am("analysis/02_pp_object_construction.Rmd")
+knitr::opts_chunk$set(echo = TRUE, fig.width = 12, fig.height = 12)
+options(future.globals.maxSize = +Inf)
+
+# Attach libraries
+library(here)
+library(BiocParallel)
+library(future)
+library(BiocNeighbors)
+library(stringr)
+library(ggplot2)
+library(janitor)
+library(readr)
+library(purrr)
+library(Seurat)
+library(tibble)
+library(sp)
+library(tidyr)
+library(furrr)
+library(dsb)
+library(dplyr) 
+library(rlang)
+library(deMULTIplex)
+library(data.table)
+library(cowplot)
+library(devtools)
+library(magrittr)
+library(cluster)
+library(fitdistrplus)
+library(future.apply)
+library(Matrix)
+
+# Parallelization
+BPPARAM <- SnowParam(workers = ceiling(0.5 * parallel::detectCores()), type = "SOCK")
+BNPARAM <- HnswParam()
+register(BPPARAM)
+plan(strategy = multisession, workers = parallel::detectCores())
+
+# Define custom functions
+source(here("R", "functions.R"))
+
+# Set plot theme for any plots
+
+# Define variables
+file_directory <- here("demo_data", "droplets")
+dataDirs <- list.files(
+  path = file_directory,
+  pattern = "raw_feature_bc_matrix|filtered_feature_bc_matrix|analysis",
+  full.names = TRUE,
+  recursive = TRUE,
+  include.dirs = TRUE
+) |>
+  str_remove("/raw_feature_bc_matrix|/filtered_feature_bc_matrix|/analysis") %>%
+  unique()
+primary_species_prefix <- "GRCh38_"
+secondary_species_prefix <- "mm10___"
+multisample <- "hash"
+```
+
+## Construct multimodal object with filtered counts from previous step
+
+```{r load data}
+# Load data from last step and samplesheet for object metadata
+# Here, gene expression matrices are simply taken as the adjusted counts output of the SoupX analysis
+gem_matrices <- readRDS(file = here("demo_data", "adjustCountList.RDS"))
+samplesheet <- read_csv(file = here("demo_data", "da_samplesheet_final.csv")) |>
+  clean_names()
+```
+
+```{r read in CITE data}
+# We still need to find cite counts, if they exist, but only the ones we've carried through to this point
+filtered_matrices <- map(
+  .x = here(dataDirs, "filtered_feature_bc_matrix"),
+  .f = Read10X
+)
+
+# Build adt_matrices if filtered_matrices contain "Antibody Capture" data and the sample is included in gem_matrices
+adt_matrices <- if_else(
+  condition = map2_lgl(
+    .x = filtered_matrices,
+    .y = basename(dataDirs),
+    .f = function(x, y) {
+      "Antibody Capture" %in% names(x) && y %in% names(gem_matrices)
+    }
+  ),
+  true = filtered_matrices %>% map("Antibody Capture"),
+  false = NULL
+) |>
+  discard(.p = is.null) |>
+  set_names(names(gem_matrices))
+
+# Free memory
+rm(filtered_matrices)
+gc()
+```
+
+```{r human vs mouse cells}
+# Separate mouse from human cells in gene expression
+gem_classification <- calcGEMClassification(gem_matrices, primary_species_prefix, secondary_species_prefix)
+```
+
+```{r dsb normalization of cite-seq data}
+# DSB-normalize each ADT matrix, but only if CITE-seq data is sufficient
+dsb_adt_matrices <- if (!is.null(adt_matrices)) {
+  future_map(
+    .x = seq_along(adt_matrices),
+    .f = function(i) {
+      message(str_glue("Evaluating CITE counts for sample {names(adt_matrices)[[i]]} of {length(adt_matrices)}."))
+      if (mean(rowSums(adt_matrices[[i]])) > 50 && mean(colSums(adt_matrices[[i]])) > 10) {
+        message(str_glue("Keeping sample {names(adt_matrices)[[i]]}."))
+
+        cells_use <-
+          gem_classification |>
+          filter(run == names(x = adt_matrices)[[i]]) |>
+          filter(call == str_remove_all(string = secondary_species_prefix, pattern = "_")) |>
+          pull(cells)
+
+        adt <- DSBNormalizeProtein(
+          cell_protein_matrix = adt_matrices[[i]],
+          empty_drop_matrix =
+            adt_matrices[[i]][, cells_use],
+          use.isotype.control = FALSE,
+          isotype.control.name.vec = NULL
+        )
+        adt
+      } else {
+        message(str_glue("Not normalizing sample {names(adt_matrices)[[i]]}. CITE data insufficient."))
+        adt <- adt_matrices[[i]]
+        adt
+      }
+    }
+  ) |>
+    setNames(names(adt_matrices)) |>
+    discard(.p = is.null)
+} else {
+  NULL
+}
+```
+
+```{r construct seurat objects}
+# Construct each run as a multimodal seurat object, stored in a list
+## DO NOT FUTURE_MAP THIS STEP (parallelization is already happening in the `constructGEMs` function)
+gems <- map(
+  .x = seq_along(gem_matrices[names(dsb_adt_matrices)]),
+  .f = function(i) {
+    message(str_glue("Constructing seurat object for run {names(gem_matrices[names(dsb_adt_matrices)])[[i]]}"))
+    constructGEMs(
+      sample = names(gem_matrices[names(dsb_adt_matrices)])[[i]],
+      gem_matrix = gem_matrices[names(dsb_adt_matrices)][[i]],
+      adt_matrix = adt_matrices[names(dsb_adt_matrices)][[i]],
+      norm_adt_matrix = dsb_adt_matrices[[i]],
+      hashtags = if (multisample == "hash") {
+        levels(factor(samplesheet$hashtag))
+      } else {
+        FALSE
+      }
+    )
+  }
+) |>
+  set_names(names(gem_matrices[names(dsb_adt_matrices)])) |>
+  discard(.p = is.null)
+```
+
+```{r add metadata to seurat objects}
+# Add in the metadata
+gems_meta <- future_map(
+  .x = seq_along(gems),
+  .f = function(i) {
+    x <- gems[[i]]
+    assignMetaData(
+      seurat_obj = x,
+      samplesheet = samplesheet,
+      multiplex = multisample,
+      barcode_df = NULL
+    )
+  }
+) |>
+  set_names(names(gems)) |>
+  discard(.p = is.null)
+
+# Free memory
+rm(gems)
+gc()
+```
+
+```{r merge seurat objects}
+# Merge data together
+pre_qc <- if (length(gems_meta) > 1) {
+  merge(
+    gems_meta[[1]],
+    map(
+      2:length(gems_meta),
+      function(x) gems_meta[[x]]
+    )
+  )
+} else {
+  gems_meta[[1]]
+}
+
+# Free memory
+rm(gems_meta)
+gc()
+```
+
+```{r save data}
+# Save data for next step
+saveRDS(object = pre_qc, file = here("demo_data", "pre_qc.RDS"))
+saveRDS(object = gem_classification, file = here("demo_data", "gem_classification.RDS"))
+```
+
+```{r}
+session_info()
+```

@@ -4,9 +4,9 @@ author: "Kevin Thomas"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output:
   rmarkdown::github_document:
+    html_preview: false
     toc: true
     toc_depth: 3
-    toc_float: true
 ---
 
 ```{css, echo=FALSE}
@@ -21,34 +21,57 @@ output:
 
 ```{r setup, include=FALSE}
 # Set options
+here::i_am("figures/figure_5_s19.Rmd")
 options(width = 1200)
 knitr::opts_chunk$set(echo = TRUE, fig.width = 12, fig.height = 12)
 # Attach libraries
+library(here)
 library(Seurat)
-library(tidyverse)
 library(presto)
 library(pheatmap)
 library(SeuratBubblePlot)
+library(cowplot)
+library(ggplot2)
+library(pals)
+library(dplyr)
+library(rlang)
+library(tibble)
+library(RColorBrewer)
+library(grDevices)
+library(ggpubr)
+library(stringr)
+library(compositions)
+library(viridisLite)
+library(magrittr)
+library(purrr)
+library(tidyr)
+library(devtools)
+
 # Set plot theme
-theme_set(cowplot::theme_cowplot())
+theme_set(theme_cowplot())
 # Import final seurat object
-sc <- readRDS(file = "../data/final_seurat.RDS")
+sc <- readRDS(file = here("data","final_seurat.RDS"))
 ```
 
 ## 5A
 ```{r 5A, fig.height=6}
-mono_clusters <- sc@meta.data %>%
-  filter(coarse_cell_type == "Monocytes") %>%
-  pull(clusters_annotated) %>%
+mono_clusters <- filter(
+    .data = sc@meta.data, 
+    coarse_cell_type == "Monocytes"
+  ) |> 
+  pull(clusters_annotated) |> 
   unique()
+
 DimPlot(
   object = sc,
   cells = WhichCells(object = sc, expression = `coarse_cell_type` %in% c("Monocytes") & `wnnUMAP_1` < 0 & `wnnUMAP_2` < 3),
   reduction = "umap_wnn",
   dims = c(1,2),
   group.by = "clusters_annotated",
-  cols = `names<-`(pals::cols25(n = length(levels(sc$clusters_annotated))), levels(sc$clusters_annotated))[levels(sc$clusters_annotated) %in% mono_clusters]
-) +
+  cols = set_names(
+    x = cols25(n = length(levels(sc$clusters_annotated))),
+    levels(sc$clusters_annotated))[levels(sc$clusters_annotated) %in% mono_clusters]
+  ) +
   labs(title = NULL, x = NULL, y = NULL) +
   coord_fixed()
 ```
@@ -64,32 +87,34 @@ mono_markers_cite <-
     X = .,
     seurat_assay = "CITE",
     group_by = "clusters_annotated"
-  ) %>%
-  as_tibble() %>%
-  dplyr::select(feature,
-                cluster = group,
-                p_val = pval,
-                p_val_adj = padj,
-                avg_logFC = logFC,
-                pct.1 = pct_in,
-                pct.2 = pct_out,
-                auc
-  ) %>%
+  ) |> 
+  as_tibble() |> 
+  dplyr::select(
+    feature,
+    cluster = group,
+    p_val = pval,
+    p_val_adj = padj,
+    avg_logFC = logFC,
+    pct.1 = pct_in,
+    pct.2 = pct_out,
+    auc
+  ) |> 
   ## Significance filter
-  filter(p_val_adj <= 0.1) %>%
-  mutate(cluster = factor(cluster, levels = unique(cluster)[c(5, 10, 7, 11, 9, 6, 1, 2, 8, 4, 3)])) %>%
-  group_by(cluster) %>%
+  filter(p_val_adj <= 0.1) |> 
+  mutate(cluster = factor(cluster, levels = unique(cluster)[c(5, 10, 7, 11, 9, 6, 1, 2, 8, 4, 3)])) |> 
+  group_by(cluster) |> 
   ## Positive markers only, remove the isotype control
-  filter(avg_logFC > 0, feature != "isotype-control") %>%
+  filter(avg_logFC > 0, feature != "isotype-control") |> 
   ## Rank markers in each cluster by average logFC
   arrange(-avg_logFC, by.group = TRUE) %>%
   ## If two clusters share a marker, the cluster with a higher average logFC is prioritized
   filter(
-    avg_logFC == map_dbl(split(., .$feature), ~max(.x$avg_logFC))[feature]
-  ) %>%
+    avg_logFC == map_dbl(split(., use_series(., feature)), ~max(use_series(.x, avg_logFC)))[feature]
+  ) |> 
   ## Top 3 features for each cluster
-  slice_head(n = 3) %>%
-  .$feature
+  slice_head(n = 3) |> 
+  use_series(feature)
+
 # Bubbleplot
 bubbleplot(
   object = subset(sc, `coarse_cell_type` %in% c("Monocytes")),
@@ -116,41 +141,43 @@ mono_markers_genes <-
     X = .,
     seurat_assay = "SCT",
     group_by = "clusters_annotated"
-  ) %>%
-  as_tibble() %>%
-  dplyr::select(feature,
-                cluster = group,
-                p_val = pval,
-                p_val_adj = padj,
-                avg_logFC = logFC,
-                pct.1 = pct_in,
-                pct.2 = pct_out,
-                auc
-  ) %>%
-  filter(p_val_adj <= 0.1) %>%
-  mutate(cluster = factor(cluster, levels = unique(cluster)[c(5, 10, 7, 11, 9, 6, 1, 2, 8, 4, 3)])) %>%
-  group_by(cluster) %>% 
-  filter(auc > 0.6) %>%
+  ) |> 
+  as_tibble() |> 
+  dplyr::select(
+    feature,
+    cluster = group,
+    p_val = pval,
+    p_val_adj = padj,
+    avg_logFC = logFC,
+    pct.1 = pct_in,
+    pct.2 = pct_out,
+    auc
+  ) |> 
+  filter(p_val_adj <= 0.1) |> 
+  mutate(cluster = factor(cluster, levels = unique(cluster)[c(5, 10, 7, 11, 9, 6, 1, 2, 8, 4, 3)])) |> 
+  group_by(cluster) |> 
+  filter(auc > 0.6) |> 
   arrange(-auc, by.group = TRUE) %>%
   filter(
-    auc == map_dbl(split(., .$feature), ~max(.x$auc))[feature]
-  ) %>%
-  slice_head(n = 5) %>%
-  .$feature
+    auc == map_dbl(split(., use_series(.,feature)), ~max(use_series(.x, auc)))[feature]
+  ) |> 
+  slice_head(n = 5) |> 
+  use_series(feature)
+
 # Heatmap
 scale <- function(x) {
   (x-min(x))/(max(x)-min(x))
 }
+
 mat <- FetchData(
   object = subset(sc, `coarse_cell_type` %in% c("Monocytes")),
   vars = c("clusters_annotated", rev(mono_markers_genes))
-) %>%
-  as_tibble(rownames = "cell") %>%
-  group_by(clusters_annotated) %>%
-  summarize_if(is.numeric, mean) %>%
-  mutate_at(mono_markers_genes, scale) %>%
-  as.data.frame() %>%
-  column_to_rownames("clusters_annotated")
+) |> 
+  as_tibble(rownames = "cell") |> 
+  group_by(clusters_annotated) |> 
+  summarise(across(where(is.numeric), mean)) |> 
+  mutate(across(mono_markers_genes, scale)) |> 
+  column_to_rownames(var = "clusters_annotated")
 pheatmap(
   mat = t(mat),
   scale = "none",
@@ -165,18 +192,18 @@ pheatmap(
 ## 5D-5G, S19A-S19G
 ```{r 5D-5G, fig.height=8}
 # Collect percent of Monocytes in each cluster per patient
-vln_data <- sc %>%
-  FetchData(
-    object = .,
+vln_data <- FetchData(
+    object = sc,
     vars = c("clusters_annotated", "subject_id", "ancestry", "classification"),
     cells = WhichCells(sc, expression = `coarse_cell_type` %in% c("Monocytes"))
-  ) %>%
-  group_by(ancestry, classification, subject_id, clusters_annotated) %>%
-  summarize(total_cells = n()) %>%
+  ) |> 
+  group_by(ancestry, classification, subject_id, clusters_annotated) |> 
+  summarise(total_cells = n()) |> 
   mutate(
     percent_total = 100*total_cells/sum(total_cells),
     group = paste(ancestry, classification)
   )
+
 # Re-order factor levels
 vln_data$group <- factor(
   x = vln_data$group,
@@ -189,20 +216,37 @@ vln_data$group <- factor(
     "AA SLE ACT"
   )
 )
+
 # Violin plots for each cluster
-vln_data %>%
-  ggplot(aes(x = group, y = percent_total)) +
-  geom_violin(aes(fill = clusters_annotated), scale = "width") +
+vln_data |> 
+  ggplot(
+    aes(
+      x = group, 
+      y = percent_total
+      )
+    ) +
+  geom_violin(
+    aes(
+      fill = clusters_annotated
+      ),
+    scale = "width"
+    ) +
   scale_fill_manual(
-    values = `names<-`(
-      x = pals::cols25(n = length(levels(vln_data$clusters_annotated))),
-      values = levels(vln_data$clusters_annotated)
+    values = set_names(
+      x = cols25(n = length(levels(vln_data$clusters_annotated))),
+      nm = levels(vln_data$clusters_annotated)
     )
   ) +
-  geom_boxplot(width = 0.2, outlier.shape = NA) +
-  geom_jitter(width = 0.2, size = 0.4) +
+  geom_boxplot(
+    width = 0.2,
+    outlier.shape = NA
+    ) +
+  geom_jitter(
+    width = 0.2,
+    size = 0.4
+    ) +
   ## Show statistics for Wilcoxon comparisons
-  ggpubr::stat_compare_means(
+  stat_compare_means(
     aes(label = ..p.format..),
     method = "wilcox.test",
     method.args = list(
@@ -225,7 +269,7 @@ vln_data %>%
   xlab(NULL) +
   ylab(NULL) +
   facet_wrap(~clusters_annotated, scales = "free", ncol = 6) +
-  cowplot::theme_cowplot() +
+  theme_cowplot() +
   theme(
     strip.background = element_blank(),
     strip.text = element_text(face = "bold", size = 9),
@@ -246,6 +290,7 @@ sc_scored <- AddModuleScore(
 )
 names(sc_scored@meta.data)[grep(pattern = "_[0-9]+$", x = names(sc_scored@meta.data))] <- str_remove_all(grep(pattern = "_[0-9]+$", x = names(sc_scored@meta.data), value = T), pattern = "_[0-9]+$")
 ```
+
 ```{r 5H, fig.height=9}
 monos_scored <- subset(
   sc_scored,
@@ -256,25 +301,27 @@ monos_scored$cluster_class <- factor(
   paste(monos_scored$clusters_annotated, monos_scored$classification),
   levels = paste(grid$Var2, grid$Var1)
 )
-cowplot::plot_grid(
+
+plot_grid(
   bubbleplot(
-  object = subset(monos_scored, `ancestry` == "EA"),
-  features_plot = c("M1.2", "M3.4", "M5.12"),
-  preserve_feature_order = TRUE,
-  grouping_var = "cluster_class",
-  colors_use = "magma",
-) +
+    object = subset(monos_scored, `ancestry` == "EA"),
+    features_plot = c("M1.2", "M3.4", "M5.12"),
+    preserve_feature_order = TRUE,
+    grouping_var = "cluster_class",
+    colors_use = "magma",
+  ) +
   scale_size_continuous(breaks = c(20, 40, 60, 80)) +
   labs(title = "EA", y = NULL, x = "Interferon Response Modules"),
-bubbleplot(
-  object = subset(monos_scored, `ancestry` == "AA"),
-  features_plot = c("M1.2", "M3.4", "M5.12"),
-  preserve_feature_order = TRUE,
-  grouping_var = "cluster_class",
-  colors_use = "magma",
-) +
-  scale_size_continuous(breaks = c(20, 40, 60)) +
-  labs(title = "AA", y = NULL, x = "Interferon Response Modules")
+
+  bubbleplot(
+    object = subset(monos_scored, `ancestry` == "AA"),
+    features_plot = c("M1.2", "M3.4", "M5.12"),
+    preserve_feature_order = TRUE,
+    grouping_var = "cluster_class",
+    colors_use = "magma",
+  ) +
+    scale_size_continuous(breaks = c(20, 40, 60)) +
+    labs(title = "AA", y = NULL, x = "Interferon Response Modules")
 )
 ```
 
@@ -282,18 +329,18 @@ bubbleplot(
 ```{r 5I-5K, fig.height=6}
 # DC Violin plots
 # Collect percent of Dendritic cells in each cluster per patient
-vln_data <- sc %>%
-  FetchData(
-    object = .,
+vln_data <- FetchData(
+    object = sc,
     vars = c("clusters_annotated", "subject_id", "ancestry", "classification"),
     cells = WhichCells(sc, expression = `coarse_cell_type` %in% c("cDCs", "pDCs"))
-  ) %>%
-  group_by(ancestry, classification, subject_id, clusters_annotated) %>%
-  summarize(total_cells = n()) %>%
+  ) |> 
+  group_by(ancestry, classification, subject_id, clusters_annotated) |> 
+  summarise(total_cells = n()) |> 
   mutate(
     percent_total = 100*total_cells/sum(total_cells),
     group = paste(ancestry, classification)
   )
+
 # Re-order factor levels
 vln_data$group <- factor(
   x = vln_data$group,
@@ -306,20 +353,37 @@ vln_data$group <- factor(
     "AA SLE ACT"
   )
 )
+
 # Violin plots for each cluster
 vln_data %>%
-  ggplot(aes(x = group, y = percent_total)) +
-  geom_violin(aes(fill = clusters_annotated), scale = "width") +
+  ggplot(
+    aes(
+      x = group, 
+      y = percent_total
+      )
+    ) +
+  geom_violin(
+    aes(
+      fill = clusters_annotated
+      ),
+    scale = "width"
+    ) +
   scale_fill_manual(
-    values = `names<-`(
-      x = pals::cols25(n = length(levels(vln_data$clusters_annotated))),
-      values = levels(vln_data$clusters_annotated)
+    values = set_names(
+      x = cols25(n = length(levels(vln_data$clusters_annotated))),
+      nm = levels(vln_data$clusters_annotated)
     )
   ) +
-  geom_boxplot(width = 0.2, outlier.shape = NA) +
-  geom_jitter(width = 0.2, size = 0.4) +
+  geom_boxplot(
+    width = 0.2, 
+    outlier.shape = NA
+    ) +
+  geom_jitter(
+    width = 0.2,
+    size = 0.4
+    ) +
   ## Show statistics for Wilcoxon comparisons
-  ggpubr::stat_compare_means(
+  stat_compare_means(
     aes(label = ..p.format..),
     method = "wilcox.test",
     method.args = list(
@@ -342,7 +406,7 @@ vln_data %>%
   xlab(NULL) +
   ylab(NULL) +
   facet_wrap(~clusters_annotated, scales = "free", ncol = 6) +
-  cowplot::theme_cowplot() +
+  theme_cowplot() +
   theme(
     strip.background = element_blank(),
     strip.text = element_text(face = "bold", size = 12),
@@ -359,24 +423,24 @@ data_to_plot <- FetchData(
   object = sc,
   vars = c("classification", "ancestry", hla_genes),
   cells =  WhichCells(sc, expression = `coarse_cell_type` == "cDCs")
-) %>%
-  as_tibble(rownames = "cell") %>%
-  pivot_longer(cols = hla_genes, names_to = "feature", values_to = "count") %>%
-  mutate(feature = factor(feature, levels = rev(hla_genes))) %>%
+) |> 
+  as_tibble(rownames = "cell") |> 
+  pivot_longer(cols = hla_genes, names_to = "feature", values_to = "count") |> 
+  mutate(feature = factor(feature, levels = rev(hla_genes))) |> 
   group_by(
     ident = factor(
       x = paste0(get("ancestry"), " ", get("classification")),
       levels = c("EA Control", "EA SLE INACT", "EA SLE ACT", "AA Control", "AA SLE INACT", "AA SLE ACT")
     ),
     feature
-  ) %>%
-  summarize(
+  ) |> 
+  summarise(
     avg_exp = mean(expm1(x = count)),
     pct_exp = 100*sum(count>0)/length(count)
-  ) %>%
-  ungroup() %>%
+  ) |> 
+  ungroup() |> 
   group_by(feature) %>%
-  mutate(avg_exp_scale = compositions::normalize(avg_exp))
+  mutate(avg_exp_scale = normalize(avg_exp))
 ggplot(
   data = data_to_plot,
   aes(
@@ -400,15 +464,20 @@ ggplot(
     fill = "#00000000"
   ) +
   scale_color_gradientn(
-    colors = viridisLite::inferno(n = 100)
+    colors = inferno(n = 100)
   ) +
   scale_y_discrete(position = "right") +
-  labs(x = NULL, y = NULL, size = "Percent cells expressing", col = "Scaled average expression") +
+  labs(
+    x = NULL, 
+    y = NULL, 
+    size = "Percent cells expressing",
+    col = "Scaled average expression"
+    ) +
   theme(
     axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)
   )
 ```
 
 ```{r}
-devtools::session_info()
+session_info()
 ```

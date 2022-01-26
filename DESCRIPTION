@@ -1,0 +1,69 @@
+Package: SLEActivityscRNAseq
+Title: sle_activity_scrnaseq
+Version: 0.0.0.9000
+Authors@R: 
+    c(
+      person("Kevin", "Thomas", , "kevin-thomas@omrf.org", role = c("aut", "cre")),
+      person("Miles", "Smith", , "miles-smith@omrf.org", role = c("ctb"),
+           comment = c(ORCID = "0000-0003-0651-809X"))
+    )
+Description: Installs libraries and functions necessary to reproduce the analysis for "Ancestry-based differences in the immune system are associated with lupus severity" (2022), Slight-Webb, S, Thomas, K., et al...
+License: Apache License (>= 2)
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.1.2
+Depends: 
+    R (>= 4.1.0)
+Imports: 
+    BiocNeighbors (>= 1.12.0),
+    BiocParallel,
+    cowplot,
+    data.table,
+    deMULTIplex,
+    devtools,
+    dsb,
+    forcats,
+    furrr,
+    future,
+    future.apply,
+    ggplot2,
+    ggrepel,
+    glmGamPoi,
+    harmony,
+    here,
+    igraph,
+    janitor,
+    knitr,
+    markdown,
+    pheatmap,
+    parallel,
+    presto,
+    purrr,
+    readr,
+    remotes,
+    rlang,
+    rmarkdown,
+    rsvd,
+    Seurat (>= 4.0.3),
+    SeuratBubblePlot,
+    SeuratObject,
+    SoupX (>= 1.5.2),
+    sp,
+    stringr,
+    tibble,
+    tidyr,
+    tinytex,
+    RColorBrewer,
+    grDevices,
+    ggpubr,
+    pals,
+    viridisLite,
+    scales,
+    viridis
+Remotes: 
+    bioc::BiocParallel,
+    bioc::BiocNeighbors,
+    bioc::glmGamPoi,
+    github::chris-mcginnis-ucsf/MULTI-seq,
+    github::immunogenomics/presto,
+    github::milescsmith/SeuratBubblePlot
