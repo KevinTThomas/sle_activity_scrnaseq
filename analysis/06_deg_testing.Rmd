@@ -1,5 +1,5 @@
 ---
-title: "Analysis 05: Plotting demonstration"
+title: "Analysis 06: Differential Expression Testing"
 author: "Kevin Thomas"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output:
@@ -21,7 +21,7 @@ output:
 
 ```{r setup, include=FALSE}
 # Set options
-here::i_am("analysis/06_plotting.Rmd")
+here::i_am("analysis/06_deg_testing.Rmd")
 options(width = 1200)
 knitr::opts_chunk$set(echo = TRUE, fig.width = 12, fig.height = 12)
 reticulate::use_condaenv(condaenv = "r-reticulate", required = TRUE, conda = "~/.local/share/r-miniconda/bin/conda")
@@ -42,12 +42,12 @@ library(tibble)
 library(presto)
 library(ggrepel)
 library(devtools)
+library(scuttle)
+library(stringr)
+library(purrr)
 
 # Parallelization
-BPPARAM <- SnowParam(workers = ceiling(0.5 * parallel::detectCores()), type = "SOCK")
-BNPARAM <- HnswParam()
-register(BPPARAM)
-plan(strategy = multisession, workers = parallel::detectCores())
+options(mc.cores = parallel::detectCores()-1)
 
 # Define custom functions
 source(file = here("R", "functions.R"))
@@ -55,20 +55,180 @@ source(file = here("R", "functions.R"))
 # Install and load MAST package
 BiocManager::install("MAST")
 library(MAST)
+# Load single cell data
+sc_total <- readRDS(file = here("data", "final_seurat.RDS"))
 ```
 
 ## Differential expression testing on each cluster
+Normally, this loop would be run on all clusters in the dataset. Across all 25 clusters in the dataset, this analysis takes just under 3.5 hours on a Google virtual machine with 32 cores and 128 Gb of RAM. For the sake of demonstration, the following code runs only on the first cluster of Naive B cells. On the same system, analysis of this first cluster takes approximately 10 minutes.
 
-```{r cars}
-summary(cars)
+```{r DE Testing}
+# Convert to sce object
+sce <- as.SingleCellExperiment(sc_total, assay = "RNA")
+
+# Perform DE testing on each cluster
+for (ct in levels(sce$clusters_annotated)[1]) {
+## Remove this subset indicator "[1]".....^ to run DE analysis on all clusters
+  message("Testing cell type: ", ct)
+  # Set up object
+  sc <- sce[,sce$clusters_annotated == ct]
+  sc <- logNormCounts(sc)
+  sca <- SceToSingleCellAssay(sc, check_sanity = TRUE)
+  
+  # Scaled cellular detection rate as a covariate
+  cdr2 <- colSums(assay(sca) > 0)
+  colData(sca)$ngeneson <- scale(cdr2)
+  
+  # Set up variables for comparisons
+  colData(sca)$ancestry <- factor(colData(sca)$ancestry, levels = c("EA", "AA"))
+  colData(sca)$classification <- factor(colData(sca)$classification, levels = c("Control", "SLE INACT", "SLE ACT"))
+  colData(sca)$run <- factor(colData(sca)$run)
+  colData(sca)$subject_id <- factor(colData(sca)$subject_id)
+  colData(sca)$subject_id <- as.numeric(colData(sca)$subject_id)
+  
+  # Get names for file headers
+  prefix <- sprintf("%02d", which(levels(sce$clusters_annotated) == ct))
+  clustername <- str_replace_all(
+    string = str_replace_all(ct, "[^[:alnum:]]", "_"),
+    pattern = "_+",
+    replacement = "_"
+  )
+  
+  # Grid of all groups to be compared
+  groups <- expand.grid(
+    ancestry = str_sort(unique(sca$ancestry)),
+    classification = levels(sca$classification)
+  )
+  # List of group indices for each comparison
+  comparisons <- list(
+    "INACTvsControl"     = list(c(3,4), c(1,2)),
+    "ACTvsControl"       = list(c(5,6), c(1,2)),
+    "ACTvsINACT"         = list(c(5,6), c(3,4)),
+    "AA.CTRLvsEA.CTRL"   = list(c(1), c(2)),
+    "AA.INACTvsEA.INACT" = list(c(3), c(4)),
+    "AA.ACTvsEA.ACT"     = list(c(5), c(6)),
+    "AA.INACTvsAA.CTRL"  = list(c(3), c(1)),
+    "AA.ACTvsAA.CTRL"    = list(c(5), c(1)),
+    "AA.ACTvsAA.INACT"   = list(c(5), c(3)),
+    "EA.INACTvsEA.CTRL"  = list(c(4), c(2)),
+    "EA.ACTvsEA.CTRL"    = list(c(6), c(2)),
+    "EA.ACTvsEA.INACT"   = list(c(6), c(4))
+  )
+  # Do DE Testing for all comparisons
+  res_list <- imap(
+    .x = comparisons,
+    .f = function(idxs, comp) {
+      # idxs = comparisons[[4]]
+      # comp = names(comparisons)[4]
+      message(paste0("Comparison: ", comp))
+      # Get the ancestry and classification groups necessary for the comparison
+      anc <- unique(groups[c(idxs[[1]], idxs[[2]]), "ancestry"])
+      class <- unique(groups[c(idxs[[1]], idxs[[2]]), "classification"])
+      
+      # Subset data to cells of interest
+      sc_test <- sca[, sca$ancestry %in% anc & sca$classification %in% class]
+      # Define group1 and group2
+      sc_test$group <- ifelse(
+        test = sc_test$ancestry %in% groups[idxs[[1]], "ancestry"] &
+          sc_test$classification %in% groups[idxs[[1]], "classification"],
+        yes = "02",
+        no = "01"
+      )
+      
+      # Filter on genes that are expressed in at least 5% of cells (or at least 10 cells, whichever is higher) in either group
+      group1_thresh <- names(
+        which(
+          rowSums(assay(sc_test[,sc_test$group == "01"]) > 0) >= max(0.05*ncol(assay(sc_test[,sc_test$group == "01"])), 10)
+        )
+      )
+      group2_thresh <- names(
+        which(
+          rowSums(assay(sc_test[,sc_test$group == "02"]) > 0) >= max(0.05*ncol(assay(sc_test[,sc_test$group == "02"])), 10)
+        )
+      )
+      genes_thresh <- union(group1_thresh, group2_thresh)
+      message(paste0("     Testing ", length(genes_thresh), " genes."))
+      
+      # Set up formula
+      formula <- as.formula(paste0("~ group + ngeneson + run + (1 | subject_id)"))
+      ## If multiple ancestries are in a comparison group, add ancestry as a blocking variable
+      if (
+        length(unique(sc_test[,sc_test$group == "01"]$ancestry)) > 1 ||
+        length(unique(sc_test[,sc_test$group == "02"]$ancestry)) > 1
+      ) {
+        formula <- update(formula, ~ . + ancestry)
+      }
+      message(paste0("     Final formula: ", paste(as.character(formula), collapse = " ")))
+      
+      t_start <- Sys.time()
+      # Fit zero-inflated model
+      zlmCond <- zlm(
+        formula = formula,
+        sca = sc_test[genes_thresh,],
+        method = "glmer",
+        ebayes = FALSE,
+        strictConvergence = FALSE,
+        force = TRUE,
+        fitArgsD = list(nAGQ=0),
+        parallel = TRUE
+      )
+      
+      # Tested contrast stats
+      summaryCond <- summary(zlmCond, doLRT = "group02", parallel = TRUE, fitArgsD = list(nAGQ=0))
+      t_end <- Sys.time()
+      
+      # Save necessary fit objects
+      if (!dir.exists(paths = here(paste0("data/MAST_out/", prefix, "_", clustername, "_fit/")))) {
+        dir.create(
+          path = here(paste0("data/MAST_out/", prefix, "_", clustername, "_fit/")),
+          recursive = TRUE
+        )
+      }
+      saveRDS(
+        object = list(zlmCond = zlmCond, summaryCond = summaryCond),
+        file = here(
+          paste0("data/MAST_out/", prefix, "_", clustername, "_fit/"),
+          paste0(prefix, "_", clustername, "_", str_remove_all(comp, "[^[:alnum:]]"), ".RDS")
+        )
+      )
+      
+      # Get the output
+      summaryDt <- summaryCond$datatable
+      de.out <- merge(
+        summaryDt[summaryDt$component == "H" & contrast == "group02", c(1, 3, 4)],
+        summaryDt[summaryDt$component == "logFC" & contrast == "group02", c(1, 3, 7, 5, 6, 8)],
+        by = c("primerid", "contrast")
+      ) |>
+        as_tibble() |>
+        dplyr::rename(feature = primerid, p_val = `Pr(>Chisq)`, logFC = coef, logFC_hi = ci.hi, logFC_lo = ci.lo) |>
+        select(-contrast) |>
+        mutate(p_val_adj = p.adjust(p_val, method = "BH"))
+      
+      message(paste0("Test completed in ", round(as.numeric(t_end-t_start, units = "mins"), 3), " minutes"))
+      return(de.out)
+    }
+  )
+  # Write needed data to .csv for input to IPA
+  df <- res_list |>
+    map(select, feature, logFC, p_val, p_val_adj) |>
+    map(dplyr::rename, P = p_val, FDR = p_val_adj) |>
+    imap(
+      .f = function(x, nm) {
+        set_colnames(x, str_remove_all(c("feature", paste0(colnames(x)[-1], "_", prefix, "_", nm)), "^logFC_"))
+      }
+    ) |>
+    purrr::reduce(full_join, by = "feature")
+  write.csv(
+    x = df,
+    file = here(
+      "data/MAST_out/",
+      paste0(prefix, "_", clustername, "_IPA.csv")
+    ),
+    row.names = FALSE
+  )
+}
 ```
 
-## Including Plots
-
-You can also embed plots, for example:
-
-```{r pressure, echo=FALSE}
-plot(pressure)
+```{r}
+session_info()
 ```
-
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
