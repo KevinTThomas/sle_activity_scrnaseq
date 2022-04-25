@@ -42,6 +42,8 @@ library(grDevices)
 library(ggpubr)
 library(devtools)
 library(purrr)
+library(tidyr)
+library(stringr)
 
 # Set plot theme
 theme_set(theme_cowplot())
@@ -189,9 +191,9 @@ pheatmap(
 ```
 
 ## 4D-4I
-```{r 4D-4I}
+```{r 4D-4I data}
 # Collect percent of B cells in each cluster per patient
-vln_data <- FetchData(
+dtplt_data <- FetchData(
     object = sc,
     vars = c("clusters_annotated", "subject_id", "ancestry", "classification"),
     cells = WhichCells(sc, expression = `coarse_cell_type` %in% c("B cells", "Plasmablasts"))
@@ -204,8 +206,8 @@ vln_data <- FetchData(
   )
 
 # Re-order factor levels
-vln_data$group <- factor(
-  x = vln_data$group,
+dtplt_data$group <- factor(
+  x = dtplt_data$group,
   levels = c(
     "EA Control",
     "EA SLE INACT",
@@ -215,35 +217,58 @@ vln_data$group <- factor(
     "AA SLE ACT"
   )
 )
+```
 
-# Violin plots for each cluster
-vln_data %>%
+```{r include=FALSE}
+for (ct in unique(dtplt_data$clusters_annotated)) {
+  dtplt_data |>
+    filter(clusters_annotated == ct) |>
+    group_by(group) |>
+    select(group, percent_total) |>
+    mutate(group_index = 1:length(group)) |>
+    pivot_wider(names_from = group, values_from = percent_total) |>
+    select(-group_index) |>
+    write.csv(
+      file = paste0(
+        "../tbl_data/Bcell_dotplot_",
+        str_replace_all(
+          string = str_replace_all(ct, "[^[:alnum:]]", "_"),
+          pattern = "_+",
+          replacement = "_"
+        ),
+        ".csv"
+      ),
+      row.names = FALSE
+    )
+}
+```
+
+```{r 4D-4I}
+# Dot plots for each cluster
+dtplt_data %>%
   ggplot(
     aes(
       x = group, 
       y = percent_total
       )
     ) +
-  geom_violin(
-    aes(
-      fill = clusters_annotated
-      ),
-    scale = "width"
+  geom_boxplot(
+    aes(fill = clusters_annotated),
+    width = 0.4, 
+    outlier.shape = NA
     ) +
   scale_fill_manual(
     values = set_names(
-      x = cols25(n = length(levels(vln_data$clusters_annotated))),
-      nm = levels(vln_data$clusters_annotated)
+      x = cols25(n = length(levels(dtplt_data$clusters_annotated))),
+      nm = levels(dtplt_data$clusters_annotated)
     )
   ) +
-  geom_boxplot(
-    width = 0.2, 
-    outlier.shape = NA
-    ) +
-  geom_jitter(
-    width = 0.2, 
-    size = 0.4
-    ) +
+  geom_dotplot(
+    binaxis = "y",
+    stackdir = "center",
+    dotsize = 0.75,
+    width = 0.4
+  ) +
   ## Show statistics for Wilcoxon comparisons
   stat_compare_means(
     aes(label = ..p.format..),
@@ -283,7 +308,7 @@ vln_data %>%
 ```
 
 ## 4L-4N + S18
-```{r 4D-4I + S18}
+```{r 4D-4I + S18 data}
 # Gather normalized expression data for heavy chain genes
 ig_data <- FetchData(
     object = sc,
@@ -315,7 +340,7 @@ ig_data <- FetchData(
 # Determine the heavy chain gene with the highest expression in each cell
 ig_data$max_ig <- colnames(x = ig_data[,grep(pattern = "^IGH", colnames(x = ig_data))])[max.col(m =  ig_data[,grep("^IGH", colnames(ig_data))], ties.method = "first")]
 # Summarize by disease group and plot results
-ig_data |> 
+ig_data <- ig_data |> 
   group_by(ancestry, classification, clusters_annotated, max_ig) |> 
   ## Tally total number of B cells in each study group predominantly expressing each Ig heavy chain
   tally() |> 
@@ -351,15 +376,42 @@ ig_data |>
         "AA SLE ACT"
       )
     )
-  ) |> 
-  ## Barplot
-  ggplot(
-    aes(
-      x = group,
-      y = percent, 
-      fill = ig_class
-      )
-    ) +
+  )
+```
+
+```{r include=FALSE}
+for (ct in unique(ig_data$clusters_annotated)) {
+  ig_data |>
+    filter(clusters_annotated == ct) |>
+    group_by(group, ig_class) |>
+    select(group, ig_class, percent) |>
+    summarize(percent = sum(percent)) |>
+    pivot_wider(id_cols = ig_class, names_from = group, values_from = percent) |>
+    write.csv(
+      file = paste0(
+        "../tbl_data/Ig_barplot_",
+        str_replace_all(
+          string = str_replace_all(ct, "[^[:alnum:]]", "_"),
+          pattern = "_+",
+          replacement = "_"
+        ),
+        ".csv"
+      ),
+      row.names = FALSE
+    )
+}
+```
+
+```{r 4D-4I + S18}
+## Barplot
+ggplot(
+  ig_data,
+  aes(
+    x = group,
+    y = percent, 
+    fill = ig_class
+    )
+  ) +
   geom_bar(stat = 'identity') +
   labs(
     x = NULL, 

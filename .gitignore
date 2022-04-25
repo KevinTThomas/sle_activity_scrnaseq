@@ -5,3 +5,4 @@
 data/*.RDS
 demo_data/*.RDS
 demo_data/droplets/s1a/raw_feature_bc_matrix
+tbl_data/*

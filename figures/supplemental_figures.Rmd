@@ -42,6 +42,7 @@ library(pheatmap)
 library(devtools)
 library(Seurat)
 library(tibble)
+library(forcats)
 
 # Define custom functions
 source(file = here("R", "functions.R"))
@@ -513,24 +514,24 @@ legend <- get_legend(heatmaps1[[1]] + theme(legend.position = c(0.5,0.75), legen
 plot_grid(
   heatmaps1[[1]],
   heatmaps2[[1]],
-  heatmaps1[[2]],
-  heatmaps2[[2]],
-  heatmaps1[[3]],
-  heatmaps2[[3]],
-  heatmaps1[[4]],
-  heatmaps2[[4]],
-  heatmaps1[[5]],
-  heatmaps2[[5]],
-  heatmaps1[[6]],
-  heatmaps2[[6]],
-  heatmaps1[[7]],
-  heatmaps2[[7]],
-  heatmaps1[[8]],
-  heatmaps2[[8]],
-  heatmaps1[[9]],
-  heatmaps2[[9]],
-  heatmaps1[[10]],
-  heatmaps2[[10]],
+  # heatmaps1[[2]],
+  # heatmaps2[[2]],
+  # heatmaps1[[3]],
+  # heatmaps2[[3]],
+  # heatmaps1[[4]],
+  # heatmaps2[[4]],
+  # heatmaps1[[5]],
+  # heatmaps2[[5]],
+  # heatmaps1[[6]],
+  # heatmaps2[[6]],
+  # heatmaps1[[7]],
+  # heatmaps2[[7]],
+  # heatmaps1[[8]],
+  # heatmaps2[[8]],
+  # heatmaps1[[9]],
+  # heatmaps2[[9]],
+  # heatmaps1[[10]],
+  # heatmaps2[[10]],
   legend,
   ncol = 2
   )

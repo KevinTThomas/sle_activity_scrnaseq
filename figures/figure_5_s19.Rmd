@@ -190,9 +190,9 @@ pheatmap(
 ```
 
 ## 5D-5G, S19A-S19G
-```{r 5D-5G, fig.height=8}
+```{r 5D-5G data, fig.height=8}
 # Collect percent of Monocytes in each cluster per patient
-vln_data <- FetchData(
+dtplt_data <- FetchData(
     object = sc,
     vars = c("clusters_annotated", "subject_id", "ancestry", "classification"),
     cells = WhichCells(sc, expression = `coarse_cell_type` %in% c("Monocytes"))
@@ -205,8 +205,8 @@ vln_data <- FetchData(
   )
 
 # Re-order factor levels
-vln_data$group <- factor(
-  x = vln_data$group,
+dtplt_data$group <- factor(
+  x = dtplt_data$group,
   levels = c(
     "EA Control",
     "EA SLE INACT",
@@ -216,35 +216,58 @@ vln_data$group <- factor(
     "AA SLE ACT"
   )
 )
+```
 
-# Violin plots for each cluster
-vln_data |> 
+```{r include=FALSE}
+for (ct in unique(dtplt_data$clusters_annotated)) {
+  dtplt_data |>
+    filter(clusters_annotated == ct) |>
+    group_by(group) |>
+    select(group, percent_total) |>
+    mutate(group_index = 1:length(group)) |>
+    pivot_wider(names_from = group, values_from = percent_total) |>
+    select(-group_index) |>
+    write.csv(
+      file = paste0(
+        "../tbl_data/Mono_dotplot_",
+        str_replace_all(
+          string = str_replace_all(ct, "[^[:alnum:]]", "_"),
+          pattern = "_+",
+          replacement = "_"
+        ),
+        ".csv"
+      ),
+      row.names = FALSE
+    )
+}
+```
+
+```{r 5D-5G, fig.height=8}
+# Dot plots for each cluster
+dtplt_data |> 
   ggplot(
     aes(
       x = group, 
       y = percent_total
       )
     ) +
-  geom_violin(
-    aes(
-      fill = clusters_annotated
-      ),
-    scale = "width"
+  geom_boxplot(
+    aes(fill = clusters_annotated),
+    width = 0.4, 
+    outlier.shape = NA
     ) +
   scale_fill_manual(
     values = set_names(
-      x = cols25(n = length(levels(vln_data$clusters_annotated))),
-      nm = levels(vln_data$clusters_annotated)
+      x = cols25(n = length(levels(dtplt_data$clusters_annotated))),
+      nm = levels(dtplt_data$clusters_annotated)
     )
   ) +
-  geom_boxplot(
-    width = 0.2,
-    outlier.shape = NA
-    ) +
-  geom_jitter(
-    width = 0.2,
-    size = 0.4
-    ) +
+  geom_dotplot(
+    binaxis = "y",
+    stackdir = "center",
+    dotsize = 0.75,
+    width = 0.4
+  ) +
   ## Show statistics for Wilcoxon comparisons
   stat_compare_means(
     aes(label = ..p.format..),
@@ -326,10 +349,10 @@ plot_grid(
 ```
 
 ## 5I-5K
-```{r 5I-5K, fig.height=6}
-# DC Violin plots
+```{r 5I-5K data, fig.height=6}
+# DC Dot plots
 # Collect percent of Dendritic cells in each cluster per patient
-vln_data <- FetchData(
+dtplt_data <- FetchData(
     object = sc,
     vars = c("clusters_annotated", "subject_id", "ancestry", "classification"),
     cells = WhichCells(sc, expression = `coarse_cell_type` %in% c("cDCs", "pDCs"))
@@ -342,8 +365,8 @@ vln_data <- FetchData(
   )
 
 # Re-order factor levels
-vln_data$group <- factor(
-  x = vln_data$group,
+dtplt_data$group <- factor(
+  x = dtplt_data$group,
   levels = c(
     "EA Control",
     "EA SLE INACT",
@@ -353,35 +376,58 @@ vln_data$group <- factor(
     "AA SLE ACT"
   )
 )
+```
 
-# Violin plots for each cluster
-vln_data %>%
+```{r include=FALSE}
+for (ct in unique(dtplt_data$clusters_annotated)) {
+  dtplt_data |>
+    filter(clusters_annotated == ct) |>
+    group_by(group) |>
+    select(group, percent_total) |>
+    mutate(group_index = 1:length(group)) |>
+    pivot_wider(names_from = group, values_from = percent_total) |>
+    select(-group_index) |>
+    write.csv(
+      file = paste0(
+        "../tbl_data/DC_dotplot_",
+        str_replace_all(
+          string = str_replace_all(ct, "[^[:alnum:]]", "_"),
+          pattern = "_+",
+          replacement = "_"
+        ),
+        ".csv"
+      ),
+      row.names = FALSE
+    )
+}
+```
+
+```{r 5I-5K, fig.height=6}
+# Dot plots for each cluster
+dtplt_data %>%
   ggplot(
     aes(
       x = group, 
       y = percent_total
       )
     ) +
-  geom_violin(
-    aes(
-      fill = clusters_annotated
-      ),
-    scale = "width"
+  geom_boxplot(
+    aes(fill = clusters_annotated),
+    width = 0.4, 
+    outlier.shape = NA
     ) +
   scale_fill_manual(
     values = set_names(
-      x = cols25(n = length(levels(vln_data$clusters_annotated))),
-      nm = levels(vln_data$clusters_annotated)
+      x = cols25(n = length(levels(dtplt_data$clusters_annotated))),
+      nm = levels(dtplt_data$clusters_annotated)
     )
   ) +
-  geom_boxplot(
-    width = 0.2, 
-    outlier.shape = NA
-    ) +
-  geom_jitter(
-    width = 0.2,
-    size = 0.4
-    ) +
+  geom_dotplot(
+    binaxis = "y",
+    stackdir = "center",
+    dotsize = 0.75,
+    width = 0.4
+  ) +
   ## Show statistics for Wilcoxon comparisons
   stat_compare_means(
     aes(label = ..p.format..),

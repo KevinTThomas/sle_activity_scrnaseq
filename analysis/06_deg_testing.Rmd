@@ -1,0 +1,74 @@
+---
+title: "Analysis 05: Plotting demonstration"
+author: "Kevin Thomas"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  rmarkdown::github_document:
+    html_preview: false
+    toc: true
+    toc_depth: 3
+---
+
+```{css, echo=FALSE}
+    body .main-container {
+      max-width: 1500px !important;
+      width: 1500px !important;
+    }
+    body {
+      max-width: 1500px !important;
+    }
+```
+
+```{r setup, include=FALSE}
+# Set options
+here::i_am("analysis/06_plotting.Rmd")
+options(width = 1200)
+knitr::opts_chunk$set(echo = TRUE, fig.width = 12, fig.height = 12)
+reticulate::use_condaenv(condaenv = "r-reticulate", required = TRUE, conda = "~/.local/share/r-miniconda/bin/conda")
+options(future.globals.maxSize = +Inf)
+
+# Attach libraries
+library(here)
+library(Seurat)
+library(BiocParallel)
+library(BiocNeighbors)
+library(future)
+library(cowplot)
+library(ggplot2)
+library(magrittr)
+library(purrr)
+library(dplyr)
+library(tibble)
+library(presto)
+library(ggrepel)
+library(devtools)
+
+# Parallelization
+BPPARAM <- SnowParam(workers = ceiling(0.5 * parallel::detectCores()), type = "SOCK")
+BNPARAM <- HnswParam()
+register(BPPARAM)
+plan(strategy = multisession, workers = parallel::detectCores())
+
+# Define custom functions
+source(file = here("R", "functions.R"))
+
+# Install and load MAST package
+BiocManager::install("MAST")
+library(MAST)
+```
+
+## Differential expression testing on each cluster
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
