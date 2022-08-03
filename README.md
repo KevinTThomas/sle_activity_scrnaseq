@@ -14,7 +14,7 @@ Download the code using
 
 The analysis requires [R](https://www.r-project.org/) (>=4.1),
 [Rstudio](https://www.rstudio.com/) (>= 2021.09.0),
-[Python](https://www.python.org/) (>=3.8). The R packages that are
+[Python](https://www.python.org/) (>=3.8) run on [Ubuntu](https://ubuntu.com/) 20.04. The R packages that are
 required for this analysis can be found in the DESCRIPTION file; this
 project, however, has itself been organized as an R package and -
 provided that you have [`BiocManager`](https://cran.r-project.org/web/packages/BiocManager/index.html)
